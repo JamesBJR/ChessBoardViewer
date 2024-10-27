@@ -67,7 +67,7 @@ class ChessBoardDetector:
         self.svm_model = self.load_svm_model()
 
         # Initialize Stockfish engine
-        stockfish_path = r"C:\GitHubRepos\MyPythonScripts\ChessOpener\stockfish\stockfish-windows-x86-64-avx2.exe"
+        stockfish_path = r"C:\GitHubRepos\ChessBoardViewer\stockfish\stockfish-windows-x86-64-avx2.exe"
         self.stockfish_path = stockfish_path
         self.initialize_stockfish()
 
@@ -140,7 +140,7 @@ class ChessBoardDetector:
 
     def load_svm_model(self):
         # Load the pre-trained SVM model for chess piece detection
-        model_path = r"C:\GitHubRepos\MyPythonScripts\ChessOpener\chess_piece_svm_model.pkl"
+        model_path = r"C:\GitHubRepos\ChessBoardViewer\chess_piece_svm_model.pkl"
         if os.path.exists(model_path):
             return joblib.load(model_path)
         else:

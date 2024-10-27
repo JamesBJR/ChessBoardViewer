@@ -54,8 +54,8 @@ def save_model(model, model_path):
     print(f"Model saved to {model_path}")
 
 if __name__ == "__main__":
-    data_folder = r"C:\GitHubRepos\MyPythonScripts\ChessOpener\templates"
-    model_path = r"C:\GitHubRepos\MyPythonScripts\ChessOpener\chess_piece_svm_model.pkl"
+    data_folder = r"C:\GitHubRepos\ChessBoardViewer\templates"
+    model_path = r"C:\GitHubRepos\ChessBoardViewer\chess_piece_svm_model.pkl"
 
     # Load data
     X, y = load_chess_pieces_data(data_folder)
