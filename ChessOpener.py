@@ -62,6 +62,7 @@ class ChessBoardDetector:
         self.debug_checkbox_var = tk.BooleanVar(value=False)
         self.debug_checkbox = tk.Checkbutton(checkbox_frame, text="Debug Mode", variable=self.debug_checkbox_var)
         self.debug_checkbox.pack(side="left", padx=5)
+        self.debug_checkbox_var.trace("w", self.on_debug_checkbox_change)
 
         self.reanalyze_var = tk.BooleanVar(value=False)
         self.reanalyze_checkbox = tk.Checkbutton(checkbox_frame, text="Recapture", variable=self.reanalyze_var)
@@ -147,6 +148,11 @@ class ChessBoardDetector:
         else:
             self.player_color_var.set("White")
         self.update_board_coordinates()  # Update the board after toggling
+   
+    def on_debug_checkbox_change(self, *args):
+        if not self.debug_checkbox_var.get():  # Check if the checkbox is unticked
+            print("Debug Mode was turned off")
+            self.reset_image()  # Clear the image when unticked
 
 
     def load_coordinates(self):
@@ -599,6 +605,20 @@ class ChessBoardDetector:
             imgtk = ImageTk.PhotoImage(image=img)
             self.image_label.imgtk = imgtk
             self.image_label.configure(image=imgtk)
+    
+    def reset_image(self):
+        # Clear the image by setting it to None
+        self.image_label.configure(image=None)
+        self.image_label.imgtk = None  # Remove reference to the image
+        placeholder_img = Image.new("RGB", (1, 1), color=(255, 255, 255))  # White 1x1 pixel
+        imgtk = ImageTk.PhotoImage(image=placeholder_img)
+        
+        # Update the image_label with the 1x1 placeholder
+        self.image_label.imgtk = imgtk
+        self.image_label.configure(image=imgtk)
+        # Resize the window to fit the new contents
+        self.root.geometry("")  # Lets Tkinter recalculate the window size based on content
+
 
     def update_board_coordinates(self):
         self.analyze_board()
