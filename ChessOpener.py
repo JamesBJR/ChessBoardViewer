@@ -27,16 +27,28 @@ class ChessBoardDetector:
         self.end_y = None
         self.load_coordinates()
         
-        # Create buttons: 'Select Area', 'Analyze Board'
-        self.screenshot_button = tk.Button(root, text="Select Area", command=self.select_area)
-        self.screenshot_button.pack(side="left", pady=5)
+       # Frame for Chessboard Display
+        # Rearranged GUI elements for a more organized layout
 
-        self.analyze_button = tk.Button(root, text="Analyze Board", command=self.analyze_board)
-        self.analyze_button.pack(side="right", pady=5)
+        # Create a label to display the chessboard image
+        self.image_label = tk.Label(root)
+        self.image_label.pack(fill="both", expand=True, pady=10, side="right")
 
-        # Create a button to restart Stockfish
-        self.restart_button = tk.Button(root, text="Restart Stockfish", command=self.Restart_stockfish)
-        self.restart_button.pack(pady=10, side="right")
+        # Create buttons: 'Select Area', 'Analyze Board', 'Restart Stockfish', 'Clear Overlays'
+        button_frame = tk.Frame(root)
+        button_frame.pack(side="top", pady=10, fill="x")
+
+        self.screenshot_button = tk.Button(button_frame, text="Select Area", command=self.select_area)
+        self.screenshot_button.pack(side="left", padx=5)
+
+        self.analyze_button = tk.Button(button_frame, text="Analyze Board", command=self.analyze_board)
+        self.analyze_button.pack(side="left", padx=5)
+
+        self.restart_button = tk.Button(button_frame, text="Restart Stockfish", command=self.Restart_stockfish)
+        self.restart_button.pack(side="left", padx=5)
+
+        self.clear_overlays_button = tk.Button(button_frame, text="Clear Overlays", command=self.clear_overlay_boxes)
+        self.clear_overlays_button.pack(side="left", padx=5)
 
         # Create a checkbox to select the player's color
         self.player_color_var = tk.StringVar(value="White")
@@ -44,41 +56,41 @@ class ChessBoardDetector:
         self.player_color_checkbox.pack(side="top", pady=5)
 
         # Create a Boolean variable to track the checkbox state of the debug mode
+        checkbox_frame = tk.Frame(root)
+        checkbox_frame.pack(side="top", pady=10, fill="x")
+
         self.debug_checkbox_var = tk.BooleanVar(value=False)
-        self.debug_checkbox = tk.Checkbutton(self.root, text="Debug Mode", variable=self.debug_checkbox_var)
-        self.debug_checkbox.pack()
+        self.debug_checkbox = tk.Checkbutton(checkbox_frame, text="Debug Mode", variable=self.debug_checkbox_var)
+        self.debug_checkbox.pack(side="left", padx=5)
+
+        self.reanalyze_var = tk.BooleanVar(value=False)
+        self.reanalyze_checkbox = tk.Checkbutton(checkbox_frame, text="Recapture", variable=self.reanalyze_var)
+        self.reanalyze_checkbox.pack(side="left", padx=5)
+
+        self.scroll_hotkey_var = tk.BooleanVar(value=False)
+        self.scroll_hotkey_checkbox = tk.Checkbutton(checkbox_frame, text="Scroll Hotkey", variable=self.scroll_hotkey_var)
+        self.scroll_hotkey_checkbox.pack(side="left", padx=5)
 
         # Threshold slider for color detection
+        slider_frame = tk.Frame(root)
+        slider_frame.pack(side="bottom", pady=10, fill="x")
+
         self.threshold_value = tk.IntVar(value=148)  # Initial value for threshold
-        self.threshold_slider = tk.Scale(root, from_=50, to=400, orient="horizontal", label="Color Threshold",
+        self.threshold_slider = tk.Scale(slider_frame, from_=50, to=400, orient="horizontal", label="Color Threshold",
                                         variable=self.threshold_value, resolution=1, length=300)
-        self.threshold_slider.pack(side="bottom", pady=5)
-
-        # Create a checkbox for recapturing and reanalyzing after best move
-        self.reanalyze_var = tk.BooleanVar(value=False)
-        self.reanalyze_checkbox = tk.Checkbutton(root, text="Recapture", variable=self.reanalyze_var)
-        self.reanalyze_checkbox.pack(side="right", pady=5)
-
-        # Button to destroy overlay boxes
-        self.clear_overlays_button = tk.Button(root, text="Clear Overlays", command=self.clear_overlay_boxes)
-        self.clear_overlays_button.pack(side="left", pady=5)
+        self.threshold_slider.pack(side="top", pady=5)
 
         # Stockfish Think Time Slider
-        self.think_time_slider = tk.Scale(root, from_=100, to=10000, orient="horizontal", label="Think Time (ms)",
-                                          length=300, resolution=1)
+        self.think_time_slider = tk.Scale(slider_frame, from_=100, to=10000, orient="horizontal", label="Think Time (ms)",
+                                        length=300, resolution=1)
         self.think_time_slider.set(500)
-        self.think_time_slider.pack(side="bottom", pady=5)
-        
+        self.think_time_slider.pack(side="top", pady=5)
+
         # Stockfish Skill Level Slider
-        self.fish_skill_slider = tk.Scale(root, from_=1, to=20, orient="horizontal", label="Skill Level",
-                                          length=100, resolution=1)
+        self.fish_skill_slider = tk.Scale(slider_frame, from_=1, to=20, orient="horizontal", label="Skill Level",
+                                        length=300, resolution=1)
         self.fish_skill_slider.set(10)
-        self.fish_skill_slider.pack(side="bottom", pady=5)
-
-
-        # Create a label to display the chessboard image
-        self.image_label = tk.Label(root)
-        self.image_label.pack(fill="both", expand=True)
+        self.fish_skill_slider.pack(side="top", pady=5)
 
         # Load pre-trained SVM model for piece recognition
         self.svm_model = self.load_svm_model()
@@ -102,11 +114,12 @@ class ChessBoardDetector:
         mouse.hook(self.on_mouse_event)
 
     def on_mouse_event(self, event):
-        # Check if the event is a wheel event and if it is a scroll up
-        if isinstance(event, mouse.WheelEvent) and event.delta > 0:
-            self.analyze_board_if_ready()
-        if isinstance(event, mouse.WheelEvent) and event.delta < 0:
-            self.analyze_board_if_ready()
+        if self.scroll_hotkey_var.get():
+            # Check if the event is a wheel event and if it is a scroll up
+            if isinstance(event, mouse.WheelEvent) and event.delta > 0:
+                self.analyze_board_if_ready()
+            if isinstance(event, mouse.WheelEvent) and event.delta < 0:
+                self.analyze_board_if_ready()
             
     def deny_hotkeys_for(self, duration):
         # Method to deny hotkeys for a set amount of time
@@ -577,10 +590,12 @@ class ChessBoardDetector:
         return predicted_class, confidence
 
     def display_image(self, img):
-          # Only display the image if the checkbox is enabled
+        # Only display the image if the checkbox is enabled
         if self.debug_checkbox_var.get():
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
+            # Resize the image to a set size
+            img = img.resize((600, 600))  # Set desired width and height
             imgtk = ImageTk.PhotoImage(image=img)
             self.image_label.imgtk = imgtk
             self.image_label.configure(image=imgtk)
@@ -596,8 +611,6 @@ class ChessBoardDetector:
         else:
             return [[f'{chr(97 + (board_size - 1 - j))}{i + 1}' for j in range(board_size)] for i in range(board_size)]
 
-    def on_space_press(self, event):
-        self.analyze_board()
 
 if __name__ == "__main__":
     root = tk.Tk()
