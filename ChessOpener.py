@@ -1,21 +1,21 @@
-import cv2
-import numpy as np
-import pyautogui
+import os
+import sys
+import time
+import json
+import threading
+
 import tkinter as tk
 from tkinter import scrolledtext
 from PIL import ImageGrab, Image, ImageTk
-import time
-import os
-import json
+import pyautogui
+import cv2
+import numpy as np
 import joblib
-from skimage.feature import hog
+from skimage.feature import hog #Get a fat hog
 from stockfish import Stockfish
-import threading
 import keyboard
 import mouse
-import sys
 
-#to do: add stockfish restart button and add slider for stockfish skill level. 
 
 
 class ChessBoardDetector:
@@ -681,11 +681,15 @@ class ChessBoardDetector:
         else:
             return [[f'{chr(97 + (board_size - 1 - j))}{i + 1}' for j in range(board_size)] for i in range(board_size)]
 
-    def on_close():
-        root.destroy()  # Closes the GUI and exits the program, Needed for we have multi threading on hotkeys
+    # Function to close the GUI and unhook all keyboard events
+    def on_close(self):
+        keyboard.unhook_all()  # Stop all keyboard hooks
+        self.root.destroy()         # Close the GUI window
+
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = ChessBoardDetector(root)
+    root.protocol("WM_DELETE_WINDOW", app.on_close)  # Bind the close event to the on_close function
     root.mainloop()
-    keyboard.wait()  # Keep the program running to listen for hotkeys
+    #keyboard.wait()  # Keep the program running to listen for hotkeys
