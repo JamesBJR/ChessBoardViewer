@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import pyautogui
 import tkinter as tk
+from tkinter import scrolledtext
 from PIL import ImageGrab, Image, ImageTk
 import time
 import os
@@ -12,13 +13,16 @@ from stockfish import Stockfish
 import threading
 import keyboard
 import mouse
+import sys
 
 #to do: add stockfish restart button and add slider for stockfish skill level. 
+
 
 class ChessBoardDetector:
     def __init__(self, root):
         self.root = root
         self.root.title("Chess Board")
+        # root.geometry("390x500")
         
         # Load previous selection coordinates if available
         self.start_x = None
@@ -93,8 +97,19 @@ class ChessBoardDetector:
         self.fish_skill_slider.set(10)
         self.fish_skill_slider.pack(side="top", pady=5)
 
+        # Frame for Console Output
+        self.console_frame = tk.Frame(root)
+        self.console_output = scrolledtext.ScrolledText(self.console_frame, wrap=tk.WORD, height=10, width=40)
+        self.console_output.pack(fill="both", expand=True)
+        self.console_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Duplicate print statements to the console output
+        self.original_stdout = sys.stdout
+        sys.stdout = self
+
         # Load pre-trained SVM model for piece recognition
         self.svm_model = self.load_svm_model()
+
 
         # Initialize Stockfish engine
         stockfish_path = r"C:\GitHubRepos\ChessBoardViewer\stockfish\stockfish-windows-x86-64-avx2.exe"
@@ -113,6 +128,25 @@ class ChessBoardDetector:
 
             # Add hotkey for mouse wheel scroll up to analyze the board
         mouse.hook(self.on_mouse_event)
+
+
+    def write(self, message):
+        # Insert message into console output
+        self.console_output.insert(tk.END, message)
+        self.console_output.see(tk.END)
+        self.original_stdout.write(message)
+
+        # Remove previous highlight
+        self.console_output.tag_remove("highlight", "1.0", tk.END)
+        
+        # Highlight the last message
+        last_index = self.console_output.index(tk.END + "-2c linestart")
+        self.console_output.tag_add("highlight", last_index, tk.END + "-1c")
+        self.console_output.tag_config("highlight", background="yellow", foreground="black")
+
+    def flush(self):
+        self.original_stdout.flush()
+
 
     def on_mouse_event(self, event):
         if self.scroll_hotkey_var.get():
