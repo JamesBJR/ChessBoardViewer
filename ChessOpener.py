@@ -603,4 +603,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = ChessBoardDetector(root)
     root.mainloop()
-    keyboard.wait()  # Keep the program running to listen for hotkeys
+   # keyboard.wait()  # Keep the program running to listen for hotkeys
