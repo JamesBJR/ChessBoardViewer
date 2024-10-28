@@ -22,7 +22,7 @@ class ChessBoardDetector:
     def __init__(self, root):
         self.root = root
         self.root.title("Chess Board")
-        # root.geometry("390x500")
+        
         
         # Load previous selection coordinates if available
         self.start_x = None
