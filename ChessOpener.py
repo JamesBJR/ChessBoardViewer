@@ -22,6 +22,9 @@ class ChessBoardDetector:
     def __init__(self, root):
         self.root = root
         self.root.title("Chess Board")
+
+        # Set the window icon (ensure the filename and path are correct)
+        root.iconbitmap("AppIcon.ico")
         
         
         # Load previous selection coordinates if available
@@ -54,26 +57,35 @@ class ChessBoardDetector:
         self.clear_overlays_button = tk.Button(button_frame, text="Clear Overlays", command=self.clear_overlay_boxes)
         self.clear_overlays_button.pack(side="left", padx=5)
 
+            # Create a frame for the checkboxes
+        checkbox1_frame = tk.Frame(root)
+        checkbox1_frame.pack(side="top", pady=10, fill="x")
+
+        # Create the checkbox to toggle 'always on top'
+        self.keep_on_top_var = tk.BooleanVar(value=False)
+        self.keep_on_top_checkbox = tk.Checkbutton(checkbox1_frame, text="Keep on Top", variable=self.keep_on_top_var, command=self.toggle_on_top)
+        self.keep_on_top_checkbox.pack(side="left", padx=5)
+
         # Create a checkbox to select the player's color
         self.player_color_var = tk.StringVar(value="White")
-        self.player_color_checkbox = tk.Checkbutton(root, text="Player is Black", variable=self.player_color_var, onvalue="Black", offvalue="White", command=self.update_board_coordinates)
-        self.player_color_checkbox.pack(side="top", pady=5)
+        self.player_color_checkbox = tk.Checkbutton(checkbox1_frame, text="Player is Black", variable=self.player_color_var, onvalue="Black", offvalue="White", command=self.update_board_coordinates)
+        self.player_color_checkbox.pack(side="left", padx=5)
 
-        # Create a Boolean variable to track the checkbox state of the debug mode
-        checkbox_frame = tk.Frame(root)
-        checkbox_frame.pack(side="top", pady=10, fill="x")
+       # Create a frame for the checkboxes 2
+        checkbox2_frame = tk.Frame(root)
+        checkbox2_frame.pack(side="top", pady=10, fill="x")
 
         self.debug_checkbox_var = tk.BooleanVar(value=False)
-        self.debug_checkbox = tk.Checkbutton(checkbox_frame, text="Debug Mode", variable=self.debug_checkbox_var)
+        self.debug_checkbox = tk.Checkbutton(checkbox2_frame, text="Debug Mode", variable=self.debug_checkbox_var)
         self.debug_checkbox.pack(side="left", padx=5)
         self.debug_checkbox_var.trace("w", self.on_debug_checkbox_change)
 
         self.reanalyze_var = tk.BooleanVar(value=False)
-        self.reanalyze_checkbox = tk.Checkbutton(checkbox_frame, text="Recapture", variable=self.reanalyze_var)
+        self.reanalyze_checkbox = tk.Checkbutton(checkbox2_frame, text="Recapture", variable=self.reanalyze_var)
         self.reanalyze_checkbox.pack(side="left", padx=5)
 
         self.scroll_hotkey_var = tk.BooleanVar(value=False)
-        self.scroll_hotkey_checkbox = tk.Checkbutton(checkbox_frame, text="Scroll Hotkey", variable=self.scroll_hotkey_var)
+        self.scroll_hotkey_checkbox = tk.Checkbutton(checkbox2_frame, text="Scroll Hotkey", variable=self.scroll_hotkey_var)
         self.scroll_hotkey_checkbox.pack(side="left", padx=5)
 
         # Threshold slider for color detection
@@ -187,6 +199,10 @@ class ChessBoardDetector:
         if not self.debug_checkbox_var.get():  # Check if the checkbox is unticked
             print("Debug Mode was turned off")
             self.reset_image()  # Clear the image when unticked
+
+    def toggle_on_top(self):
+        # Toggles the 'always on top' status based on the checkbox state
+        root.wm_attributes("-topmost", self.keep_on_top_var.get())
 
 
     def load_coordinates(self):
@@ -665,9 +681,11 @@ class ChessBoardDetector:
         else:
             return [[f'{chr(97 + (board_size - 1 - j))}{i + 1}' for j in range(board_size)] for i in range(board_size)]
 
+    def on_close():
+        root.destroy()  # Closes the GUI and exits the program, Needed for we have multi threading on hotkeys
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = ChessBoardDetector(root)
     root.mainloop()
-   # keyboard.wait()  # Keep the program running to listen for hotkeys
+    keyboard.wait()  # Keep the program running to listen for hotkeys
