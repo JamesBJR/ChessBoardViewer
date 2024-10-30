@@ -5,6 +5,7 @@ import json
 import threading
 
 import tkinter as tk
+from tkinter import ttk
 from tkinter import scrolledtext
 from PIL import ImageGrab, Image, ImageTk
 import pyautogui
@@ -13,6 +14,7 @@ import numpy as np
 import joblib
 from skimage.feature import hog #Get a fat hog
 from stockfish import Stockfish
+import chess
 import keyboard
 import mouse
 
@@ -71,6 +73,10 @@ class ChessBoardDetector:
         self.player_color_checkbox = tk.Checkbutton(checkbox1_frame, text="Player is Black", variable=self.player_color_var, onvalue="Black", offvalue="White", command=self.update_board_coordinates)
         self.player_color_checkbox.pack(side="left", padx=5)
 
+        self.eval_box_var = tk.BooleanVar(value=False)
+        self.eval_box_checkbox = tk.Checkbutton(checkbox1_frame, text="Evaluation", variable=self.eval_box_var)
+        self.eval_box_checkbox.pack(side="left", padx=5)
+
        # Create a frame for the checkboxes 2
         checkbox2_frame = tk.Frame(root)
         checkbox2_frame.pack(side="top", pady=10, fill="x")
@@ -87,6 +93,18 @@ class ChessBoardDetector:
         self.scroll_hotkey_var = tk.BooleanVar(value=False)
         self.scroll_hotkey_checkbox = tk.Checkbutton(checkbox2_frame, text="Scroll Hotkey", variable=self.scroll_hotkey_var)
         self.scroll_hotkey_checkbox.pack(side="left", padx=5)
+
+        # Create a frame for evaluation bar
+        eval_frame = tk.Frame(root)
+        eval_frame.pack(side="top", pady=10, fill="x")
+
+        # Add evaluation bar to show who is winning
+        self.evaluation_bar = ttk.Progressbar(eval_frame, orient='horizontal', length=300, mode='determinate')
+        self.evaluation_bar.pack(side="top", pady=5)
+
+        # Add label to show numeric evaluation value
+        self.eval_label = tk.Label(eval_frame, text="Evaluation: Equal", font=("Arial", 10))
+        self.eval_label.pack(side="top", pady=5)
 
         # Threshold slider for color detection
         slider_frame = tk.Frame(root)
@@ -141,8 +159,8 @@ class ChessBoardDetector:
             # Add hotkey for mouse wheel scroll up to analyze the board
         mouse.hook(self.on_mouse_event)
 
-
-    def write(self, message):
+#-------GUI Methods
+    def write(self, message): #Write the message to the console output
         # Insert message into console output
         self.console_output.insert(tk.END, message)
         self.console_output.see(tk.END)
@@ -156,11 +174,10 @@ class ChessBoardDetector:
         self.console_output.tag_add("highlight", last_index, tk.END + "-1c")
         self.console_output.tag_config("highlight", background="yellow", foreground="black")
 
-    def flush(self):
+    def flush(self): #Flush the console output
         self.original_stdout.flush()
 
-
-    def on_mouse_event(self, event):
+    def on_mouse_event(self, event): #Method to handle mouse events
         if self.scroll_hotkey_var.get():
             # Check if the event is a wheel event and if it is a scroll up
             if isinstance(event, mouse.WheelEvent) and event.delta > 0:
@@ -168,7 +185,7 @@ class ChessBoardDetector:
             if isinstance(event, mouse.WheelEvent) and event.delta < 0:
                 self.analyze_board_if_ready()
             
-    def deny_hotkeys_for(self, duration):
+    def deny_hotkeys_for(self, duration):#Method to deny hotkeys for a set amount of time
         # Method to deny hotkeys for a set amount of time
         def deny():
             self.hotkey_denied = True
@@ -176,18 +193,18 @@ class ChessBoardDetector:
             self.hotkey_denied = False
         threading.Thread(target=deny).start()
 
-    def analyze_board_if_ready(self):
+    def analyze_board_if_ready(self): #Method to analyze the board if hotkeys are not denied
         # Only proceed if hotkeys are not denied
         if not self.hotkey_denied:
-            threading.Thread(target=self.analyze_board).start()
+            self.analyze_board()
 
-    def clear_overlay_boxes(self):
+    def clear_overlay_boxes(self):#Method to clear overlay boxes from the screen
         # Method to clear overlay boxes from the screen
         for box in self.current_overlays:
             box.destroy()
         self.current_overlays.clear()
 
-    def toggle_player_color(self):
+    def toggle_player_color(self):#Method to toggle the player's color
         # Function to toggle the player's color checkbox
         if self.player_color_var.get() == "White":
             self.player_color_var.set("Black")
@@ -195,17 +212,16 @@ class ChessBoardDetector:
             self.player_color_var.set("White")
         self.update_board_coordinates()  # Update the board after toggling
    
-    def on_debug_checkbox_change(self, *args):
+    def on_debug_checkbox_change(self, *args):#Method to handle the debug checkbox change
         if not self.debug_checkbox_var.get():  # Check if the checkbox is unticked
             print("Debug Mode was turned off")
             self.reset_image()  # Clear the image when unticked
 
-    def toggle_on_top(self):
+    def toggle_on_top(self):#Method to toggle the 'always on top' status
         # Toggles the 'always on top' status based on the checkbox state
         root.wm_attributes("-topmost", self.keep_on_top_var.get())
 
-
-    def load_coordinates(self):
+    def load_coordinates(self):#    Load the coordinates from the JSON file
         try:
             with open("chessboard_coordinates.json", "r") as file:
                 data = json.load(file)
@@ -216,7 +232,7 @@ class ChessBoardDetector:
         except FileNotFoundError:
             pass
 
-    def save_coordinates(self):
+    def save_coordinates(self):#Save the coordinates to the JSON file
         data = {
             "start_x": self.start_x,
             "start_y": self.start_y,
@@ -226,7 +242,7 @@ class ChessBoardDetector:
         with open("chessboard_coordinates.json", "w") as file:
             json.dump(data, file)
 
-    def load_svm_model(self):
+    def load_svm_model(self):#Load the SVM model for chess piece detection
         # Load the pre-trained SVM model for chess piece detection
         model_path = r"C:\GitHubRepos\ChessBoardViewer\chess_piece_svm_model.pkl"
         if os.path.exists(model_path):
@@ -235,23 +251,7 @@ class ChessBoardDetector:
             print("Model file not found. Please train the SVM model first.")
             return None
 
-    def initialize_stockfish(self):
-        try:
-            # Ensure you're retrieving the slider's value as an integer
-            skill_level = self.fish_skill_slider.get() if hasattr(self.fish_skill_slider, 'get') else self.fish_skill_slider
-            self.stockfish = Stockfish(self.stockfish_path)
-            self.stockfish.set_skill_level(skill_level)  # Use the slider's value as an integer
-            print("Stockfish initialized successfully. With a skill level of", skill_level)
-        except Exception as e:
-            print(f"Failed to initialize Stockfish: {e}")
-            self.stockfish = None
-
-    def Restart_stockfish(self):
-        del self.stockfish  # Python should handle cleanup
-        self.initialize_stockfish()
-
-
-    def select_area(self):
+    def select_area(self):  # Function to select the area of the chessboard
         # Hide the window to take a screenshot of full screen
         self.root.withdraw()
         time.sleep(0.5)  # Small delay to make sure the window is hidden
@@ -330,9 +330,138 @@ class ChessBoardDetector:
         selection_canvas.bind("<ButtonRelease-1>", on_mouse_up)
         selection_window.bind("<Motion>", on_mouse_move)
 
+    def reanalyze_board(self):#Reanalyze the board
+        if self.reanalyze_var.get():
+           if not self.hotkey_denied:
+                self.analyze_board()
+
+    def update_evaluation_display(self, evaluation_data):#Update the evaluation display
+        if evaluation_data["type"] == "cp":
+            # Centipawn value indicates positional advantage
+            eval_value = evaluation_data["value"]
+
+            # Update progress bar (value from 0 to 100)
+            # Assume a scale of -1000 to +1000 centipawns for evaluation
+            eval_score_normalized = max(-1000, min(1000, eval_value))  # Clamp value between -1000 and +1000
+            eval_percentage = (eval_score_normalized + 1000) / 20  # Convert to percentage (0 to 100)
+
+            self.evaluation_bar["value"] = eval_percentage
+
+            # Update evaluation label
+            if eval_value > 0:
+                self.eval_label.config(text=f"Evaluation: +{eval_value} (White is better)")
+            elif eval_value < 0:
+                self.eval_label.config(text=f"Evaluation: {eval_value} (Black is better)")
+            else:
+                self.eval_label.config(text="Evaluation: Equal")
+
+        elif evaluation_data["type"] == "mate":
+            # Mate in X moves found
+            mate_in = evaluation_data["value"]
+
+            # Update evaluation bar to show extreme value for mate
+            self.evaluation_bar["value"] = 100 if mate_in > 0 else 0
+
+            # Update evaluation label
+            self.eval_label.config(text=f"Mate in {mate_in} moves")
 
 
-    def analyze_board(self):
+#Stockfish methods       
+    def initialize_stockfish(self):#Initialize Stockfish
+        try:
+            # Ensure you're retrieving the slider's value as an integer
+            skill_level = self.fish_skill_slider.get() if hasattr(self.fish_skill_slider, 'get') else self.fish_skill_slider
+            self.stockfish = Stockfish(self.stockfish_path)
+            self.stockfish.set_skill_level(skill_level)  # Use the slider's value as an integer
+            print("Stockfish initialized. Skill level :", skill_level)
+        except Exception as e:
+            print(f"Failed to initialize Stockfish: {e}")
+            self.stockfish = None
+
+    def Restart_stockfish(self):#   Restart Stockfish
+        del self.stockfish  # Python should handle cleanup
+        self.initialize_stockfish()
+
+    def is_legal_fen(self, fen: str) -> bool:#Check if the FEN is legal
+        try:
+            board = chess.Board(fen)
+            if board.is_valid() and board.is_check() is not None: # Check if the board is valid
+                print("Valid FEN. ", fen[40])
+                return True
+            else:
+                print("Invalid FEN.")
+                if self.reanalyze_var.get():
+                    threading.Timer(1.0, self.reanalyze_board).start()  # Delay reanalyze_board by 1 second
+                return False
+        except ValueError:
+            print("Invalid FEN syntax.")
+            if self.reanalyze_var.get():
+                threading.Timer(1.0, self.reanalyze_board).start()  # Delay reanalyze_board by 1 second
+            return False
+
+    def get_evaluation_data(self, fen: str):#Get the evaluation data from Stockfish
+        if self.stockfish is None:
+            print("Stockfish is not initialized. Reinitializing...")
+            self.initialize_stockfish()
+            if self.stockfish is None:
+                print("Failed to reinitialize Stockfish.")
+                return
+
+        try:
+            # Set the FEN position
+            self.stockfish.set_fen_position(fen)
+
+            # Get the evaluation from Stockfish
+            evaluation = self.stockfish.get_evaluation()
+
+            # Update GUI safely
+            self.root.after(0, self.update_evaluation_display, evaluation)
+
+        except Exception as e:
+            print(f"Stockfish process crashed: {e}. Reinitializing...")
+            self.initialize_stockfish()
+
+    def get_best_move(self, fen): #Get the best move from Stockfish
+        if self.stockfish is None:
+            print("Stockfish is not initialized. Reinitializing...")
+            self.initialize_stockfish()
+            if self.stockfish is None:
+                print("Failed to reinitialize Stockfish.")
+                return None, None
+        
+        try:
+            # Set the FEN position
+            self.stockfish.set_fen_position(fen)
+            
+            # Get the best move from Stockfish
+            think_time = self.think_time_slider.get()
+            best_move = self.stockfish.get_best_move_time(think_time)
+            
+        except Exception as e:
+            print(f"Stockfish process crashed: {e}. Reinitializing...")
+            self.initialize_stockfish()
+            if self.stockfish is None:
+                return None, None
+            self.stockfish.set_fen_position(fen)
+            best_move = self.stockfish.get_best_move()
+        if best_move is None:
+            return None, None
+        
+        print(f"Best move directly: {best_move}")
+
+         # **Promotion Check**:
+        if len(best_move) == 5:
+            best_move = best_move[:4]  # Strip off the promotion character (e.g., "q")
+
+        # Split the move into starting and ending coordinates
+        start_pos = best_move[:2]
+        end_pos = best_move[2:]
+        
+        return start_pos, end_pos
+    
+
+#Main Methods
+    def analyze_board(self): #Main function to analyze the board and call draw methods
 
 
         if self.start_x is None or self.start_y is None or self.end_x is None or self.end_y is None:
@@ -435,16 +564,19 @@ class ChessBoardDetector:
             fen_rows = fen.split(' ')[0].split('/')
             fen_rows = [row[::-1] for row in reversed(fen_rows)]
             fen = '/'.join(fen_rows) + (' b' if self.player_color_var.get() == 'Black' else ' w') + f' {castling_rights} - 0 1'
+          
+        print(f"FEN: {fen[:39]}")
 
-        print("FEN Notation:", fen)
-        
         # Display the updated board with grid
         self.display_image(self.screenshot_with_grid)
 
-        # Use a separate thread to get the best move to avoid blocking the GUI
-        threading.Thread(target=self.get_best_move_and_draw, args=(fen,)).start()
+        if self.is_legal_fen(fen):
+            # Use a separate thread to get the best move to avoid blocking the GUI
+            threading.Thread(target=self.draw_moves_and_print, args=(fen,)).start()
+            if self.eval_box_var.get():
+                self.get_evaluation_data(fen)
 
-    def check_castling_rights(self, board_position):
+    def check_castling_rights(self, board_position): #Check if castling is possible to add to FEN
         white_castling_rights = {'K': True, 'Q': True}
         black_castling_rights = {'k': True, 'q': True}
         
@@ -471,7 +603,7 @@ class ChessBoardDetector:
         castling_rights += 'q' if black_castling_rights['q'] else ''
         return castling_rights if castling_rights else '-'
 
-    def determine_piece_colors(self, cells):
+    def determine_piece_colors(self, cells): #Determine the color of the pieces
         colors = []
         # Get the current threshold value from the slider
         brightness_threshold = self.threshold_value.get()
@@ -490,7 +622,7 @@ class ChessBoardDetector:
     
         return colors
 
-    def get_best_move_and_draw(self, fen):
+    def draw_moves_and_print(self, fen): #Get the best move and draw it on the GUI
         start, end = self.get_best_move(fen)
         if start is None or end is None:
             print("No move available.")
@@ -502,8 +634,10 @@ class ChessBoardDetector:
         # Tkinter GUI updates must be run on the main thread.
         self.root.after(0, self.highlight_best_move, start, end)
         self.root.after(0, self.highlight_over_screen, start, end)
+        # Reanalyze the board if you want to
+        self.reanalyze_board()
 
-    def highlight_over_screen(self, start, end):
+    def highlight_over_screen(self, start, end): #Highlight the best move on the screen
         # Assume the selected area is a perfect square chessboard
         board_size = 8
         cell_width = (self.end_x - self.start_x) // board_size
@@ -557,11 +691,7 @@ class ChessBoardDetector:
             # Add the overlay to the list of current overlays
             self.current_overlays.append(overlay_end)
 
-
-
-
-
-    def highlight_best_move(self, start, end):
+    def highlight_best_move(self, start, end): #Highlight the best move on the GUI
         # Assume the selected area is a perfect square chessboard
         board_size = 8
         cell_width = (self.end_x - self.start_x) // board_size
@@ -581,55 +711,14 @@ class ChessBoardDetector:
             # Display the result in the GUI
             self.display_image(self.screenshot_with_grid)
 
-            # If the reanalyze checkbox is checked, reanalyze the board
-            if self.reanalyze_var.get():
-                threading.Thread(target=self.analyze_board).start()
-
-    def get_best_move(self, fen):
-        if self.stockfish is None:
-            print("Stockfish is not initialized. Reinitializing...")
-            self.initialize_stockfish()
-            if self.stockfish is None:
-                print("Failed to reinitialize Stockfish.")
-                return None, None
-        
-        try:
-            # Set the FEN position
-            self.stockfish.set_fen_position(fen)
-            
-            # Get the best move from Stockfish
-            think_time = self.think_time_slider.get()
-            best_move = self.stockfish.get_best_move_time(think_time)
-        except Exception as e:
-            print(f"Stockfish process crashed: {e}. Reinitializing...")
-            self.initialize_stockfish()
-            if self.stockfish is None:
-                return None, None
-            self.stockfish.set_fen_position(fen)
-            best_move = self.stockfish.get_best_move()
-        
-        if best_move is None:
-            return None, None
-        
-         # **Promotion Check**:
-        if len(best_move) == 5:
-            best_move = best_move[:4]  # Strip off the promotion character (e.g., "q")
-
-        
-        # Split the move into starting and ending coordinates
-        start_pos = best_move[:2]
-        end_pos = best_move[2:]
-        
-        return start_pos, end_pos
-
-    def get_cell_coordinates(self, coord, board_coordinates, cell_width, cell_height):
+    def get_cell_coordinates(self, coord, board_coordinates, cell_width, cell_height): #Get the coordinates of the cell
         for i, row in enumerate(board_coordinates):
             for j, board_coord in enumerate(row):
                 if board_coord == coord:
                     return j * cell_width, i * cell_height
         return None, None
 
-    def identify_piece_with_svm(self, cell):
+    def identify_piece_with_svm(self, cell): #Identify the piece using SVM
         # Resize cell to a fixed size
         cell_resized = cv2.resize(cell, (64, 64))
         
@@ -645,7 +734,7 @@ class ChessBoardDetector:
         predicted_class = self.svm_model.classes_[np.argmax(prediction)] if confidence > 0 else None
         return predicted_class, confidence
 
-    def display_image(self, img):
+    def display_image(self, img): #Display the image on the GUI
         # Only display the image if the checkbox is enabled
         if self.debug_checkbox_var.get():
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -656,7 +745,7 @@ class ChessBoardDetector:
             self.image_label.imgtk = imgtk
             self.image_label.configure(image=imgtk)
     
-    def reset_image(self):
+    def reset_image(self): #Reset the image on the GUI
         # Clear the image by setting it to None
         self.image_label.configure(image=None)
         self.image_label.imgtk = None  # Remove reference to the image
@@ -669,11 +758,10 @@ class ChessBoardDetector:
         # Resize the window to fit the new contents
         self.root.geometry("")  # Lets Tkinter recalculate the window size based on content
 
-
-    def update_board_coordinates(self):
+    def update_board_coordinates(self): #Update the board coordinates based on player color
         self.analyze_board()
 
-    def get_board_coordinates(self):
+    def get_board_coordinates(self): #Get the board coordinates based on player color
         player_color = self.player_color_var.get()
         board_size = 8
         if player_color == "White":
@@ -681,8 +769,7 @@ class ChessBoardDetector:
         else:
             return [[f'{chr(97 + (board_size - 1 - j))}{i + 1}' for j in range(board_size)] for i in range(board_size)]
 
-    # Function to close the GUI and unhook all keyboard events
-    def on_close(self):
+    def on_close(self): # Function to close the GUI and unhook all keyboard events
         keyboard.unhook_all()  # Stop all keyboard hooks
         self.root.destroy()         # Close the GUI window
 
