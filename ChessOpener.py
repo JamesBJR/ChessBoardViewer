@@ -44,21 +44,28 @@ class ChessBoardDetector:
         self.image_label = tk.Label(root)
         self.image_label.pack(fill="both", expand=True, pady=10, side="right")
 
-        # Create buttons: 'Select Area', 'Analyze Board', 'Restart Stockfish', 'Clear Overlays'
-        button_frame = tk.Frame(root)
-        button_frame.pack(side="top", pady=10, fill="x")
+        # Create buttons: 'Select Area', 'Analyze Board', 'Restart Stockfish', 'Clear Overlays',
+        button_frame1 = tk.Frame(root)
+        button_frame1.pack(side="top", pady=10, fill="x")
 
-        self.screenshot_button = tk.Button(button_frame, text="Select Area", command=self.select_area)
+        self.screenshot_button = tk.Button(button_frame1, text="Select Area", command=self.select_area)
         self.screenshot_button.pack(side="left", padx=5)
 
-        self.analyze_button = tk.Button(button_frame, text="Analyze Board", command=self.analyze_board)
+        self.analyze_button = tk.Button(button_frame1, text="Analyze Board", command=self.analyze_board)
         self.analyze_button.pack(side="left", padx=5)
 
-        self.restart_button = tk.Button(button_frame, text="Restart Stockfish", command=self.Restart_stockfish)
+        self.restart_button = tk.Button(button_frame1, text="Restart Stockfish", command=self.Restart_stockfish)
         self.restart_button.pack(side="left", padx=5)
 
-        self.clear_overlays_button = tk.Button(button_frame, text="Clear Overlays", command=self.clear_overlay_boxes)
+        self.clear_overlays_button = tk.Button(button_frame1, text="Clear Overlays", command=self.clear_overlay_boxes)
         self.clear_overlays_button.pack(side="left", padx=5)
+
+        # Create buttons:  'Auto Detect Board'
+        button_frame2 = tk.Frame(root)
+        button_frame2.pack(side="top", pady=10, fill="x")
+
+        self.auto_detect_button = tk.Button(button_frame2, text="Auto Detect Board", command=self.auto_detect_board)
+        self.auto_detect_button.pack(side="left", padx=5)
 
             # Create a frame for the checkboxes
         checkbox1_frame = tk.Frame(root)
@@ -937,6 +944,47 @@ class ChessBoardDetector:
         except Exception as e:
             print(f"Error while pinging Stockfish: {e}")
             return False
+
+    def auto_detect_board(self):
+        # Hide the window to take a screenshot of full screen
+        self.root.withdraw()
+        time.sleep(0.2)  # Small delay to make sure the window is hidden
+
+        # Take screenshot of the full screen
+        screenshot = pyautogui.screenshot()
+        screenshot = np.array(screenshot)
+        screenshot = cv2.cvtColor(screenshot, cv2.COLOR_RGB2BGR)
+
+        # Convert the screenshot to grayscale
+        gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
+
+        # Use edge detection to find the chessboard
+        edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+
+        # Find contours in the edges
+        contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        if contours:
+            # Find the largest contour which should be the chessboard
+            largest_contour = max(contours, key=cv2.contourArea)
+
+            # Get the bounding box of the largest contour
+            x, y, w, h = cv2.boundingRect(largest_contour)
+
+            # Set the coordinates
+            self.start_x, self.start_y, self.end_x, self.end_y = x, y, x + w, y + h
+
+            print(f"Chessboard detected at coordinates: ({self.start_x}, {self.start_y}), ({self.end_x}, {self.end_y})")
+
+            # Save the selected coordinates
+            self.save_coordinates()
+            # Automatically analyze the board after selecting
+            self.analyze_board()
+        else:
+            print("No chessboard detected. Please try again.")
+
+        # Show the main window again
+        self.root.deiconify()
 
 if __name__ == "__main__":
     root = tk.Tk()
