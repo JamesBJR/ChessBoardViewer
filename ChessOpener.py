@@ -119,8 +119,8 @@ class ChessBoardDetector:
         slider_frame = tk.Frame(root)
         slider_frame.pack(side="bottom", pady=10, fill="x")
 
-        self.threshold_value = tk.IntVar(value=148)  # Initial value for threshold
-        self.threshold_slider = tk.Scale(slider_frame, from_=50, to=400, orient="horizontal", label="Color Threshold",
+        self.threshold_value = tk.IntVar(value=147)  # Initial value for threshold
+        self.threshold_slider = tk.Scale(slider_frame, from_=135, to=165, orient="horizontal", label="       White <---- Color Threshold ----> Black       ",
                                         variable=self.threshold_value, resolution=1, length=300)
         self.threshold_slider.pack(side="top", pady=5)
 
@@ -398,13 +398,17 @@ class ChessBoardDetector:
 
 
 #Stockfish methods       
-    def initialize_stockfish(self):#Initialize Stockfish
+    def initialize_stockfish(self):  # Initialize Stockfish
         try:
             # Ensure you're retrieving the slider's value as an integer
             skill_level = self.fish_skill_slider.get() if hasattr(self.fish_skill_slider, 'get') else self.fish_skill_slider
             self.stockfish = Stockfish(self.stockfish_path)
-            self.stockfish.set_skill_level(skill_level)  # Use the slider's value as an integer
-            print("Stockfish initialized. Skill level :", skill_level)
+
+            # Set skill level and Stockfish parameters to use more threads
+            self.stockfish.set_skill_level(skill_level)
+            self.stockfish.update_engine_parameters({"Threads": 6})  # Adjust as needed based on your system
+
+            print(f"Stockfish initialized. Skill level: {skill_level}, Threads: 6")
         except Exception as e:
             print(f"Failed to initialize Stockfish: {e}")
             self.stockfish = None
@@ -453,41 +457,41 @@ class ChessBoardDetector:
             self.initialize_stockfish()
 
     def get_best_move(self, fen): #Get the best move from Stockfish
-        if self.stockfish is None:
-            print("Stockfish is not initialized. Reinitializing...")
-            self.initialize_stockfish()
             if self.stockfish is None:
-                print("Failed to reinitialize Stockfish.")
-                return None, None
-        
-        try:
-            # Set the FEN position
-            self.stockfish.set_fen_position(fen)
+                print("Stockfish is not initialized. Reinitializing...")
+                self.initialize_stockfish()
+                if self.stockfish is None:
+                    print("Failed to reinitialize Stockfish.")
+                    return None, None
             
-            # Get the best move from Stockfish
-            think_time = self.think_time_slider.get()
-            best_move = self.stockfish.get_best_move_time(think_time)
-            
-        except Exception as e:
-            print(f"Stockfish process crashed: {e}. Reinitializing...")
-            self.initialize_stockfish()
-            if self.stockfish is None:
+            try:
+                # Set the FEN position
+                self.stockfish.set_fen_position(fen)
+                
+                # Get the best move from Stockfish
+                think_time = self.think_time_slider.get()
+                best_move = self.stockfish.get_best_move_time(think_time)
+                
+            except Exception as e:
+                print(f"Stockfish process crashed: {e}. Reinitializing...")
+                self.initialize_stockfish()
+                if self.stockfish is None:
+                    return None, None
+                self.stockfish.set_fen_position(fen)
+                best_move = self.stockfish.get_best_move()
+            if best_move is None:
                 return None, None
-            self.stockfish.set_fen_position(fen)
-            best_move = self.stockfish.get_best_move()
-        if best_move is None:
-            return None, None
-        
+            
 
-         # **Promotion Check**:
-        if len(best_move) == 5:
-            best_move = best_move[:4]  # Strip off the promotion character (e.g., "q")
+            # **Promotion Check**:
+            if len(best_move) == 5:
+                best_move = best_move[:4]  # Strip off the promotion character (e.g., "q")
 
-        # Split the move into starting and ending coordinates
-        start_pos = best_move[:2]
-        end_pos = best_move[2:]
-        
-        return start_pos, end_pos
+            # Split the move into starting and ending coordinates
+            start_pos = best_move[:2]
+            end_pos = best_move[2:]
+            
+            return start_pos, end_pos
     
     def get_forced_mate_moves(self, fen: str) -> list:
         # Load the chess engine
@@ -623,10 +627,17 @@ class ChessBoardDetector:
         self.display_image(self.screenshot_with_grid)
 
         if self.is_legal_fen(fen):
-            # Use a separate thread to get the best move to avoid blocking the GUI
-            threading.Thread(target=self.draw_moves_and_print, args=(fen,)).start()
-            if self.eval_box_var.get():
-                threading.Thread(target=self.get_evaluation_data, args=(fen,)).start()              
+            if not self.ping_stockfish():
+                self.Restart_stockfish()
+            else:
+                # Use a separate thread to get the best move to avoid blocking the GUI
+                threading.Thread(target=self.draw_moves_and_print, args=(fen,)).start()
+                think_time = self.think_time_slider.get()
+                self.root.after(think_time, lambda: None)  # Non-blocking pause for the length of the think time (in ms) 
+                if self.eval_box_var.get():
+                    threading.Thread(target=self.get_evaluation_data, args=(fen,)).start()    
+
+         
 
     def check_castling_rights(self, board_position): #Check if castling is possible to add to FEN
         white_castling_rights = {'K': True, 'Q': True}
@@ -913,6 +924,19 @@ class ChessBoardDetector:
         keyboard.unhook_all()  # Stop all keyboard hooks
         self.root.destroy()         # Close the GUI window
 
+    def ping_stockfish(self):
+        try:
+            # Use get_parameters to check if Stockfish is responsive
+            parameters = self.stockfish.get_parameters()
+            if parameters:
+                print("Stockfish is responsive.")
+                return True
+            else:
+                print("No response from Stockfish.")
+                return False
+        except Exception as e:
+            print(f"Error while pinging Stockfish: {e}")
+            return False
 
 if __name__ == "__main__":
     root = tk.Tk()
