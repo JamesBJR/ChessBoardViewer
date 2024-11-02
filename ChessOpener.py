@@ -29,7 +29,8 @@ class ChessBoardDetector:
         # Set the window icon (ensure the filename and path are correct)
         root.iconbitmap("AppIcon.ico")
         
-        
+
+
         # Load previous selection coordinates if available
         self.start_x = None
         self.start_y = None
@@ -37,6 +38,10 @@ class ChessBoardDetector:
         self.end_y = None
         self.load_coordinates()
         
+
+                        # Create a canvas for the chessboard
+        self.canvas = tk.Canvas(self.root, width=(self.end_x - self.start_x), height=(self.end_y - self.start_y))
+        self.canvas.place(x=self.start_x, y=self.start_y)
        # Frame for Chessboard Display
         # Rearranged GUI elements for a more organized layout
 
@@ -60,12 +65,15 @@ class ChessBoardDetector:
         self.clear_overlays_button = tk.Button(button_frame1, text="Clear Overlays", command=self.clear_overlay_boxes)
         self.clear_overlays_button.pack(side="left", padx=5)
 
-        # Create buttons:  'Auto Detect Board'
+        # Create buttons:  'Auto Detect Board',  'Test Mate Moves'
         button_frame2 = tk.Frame(root)
         button_frame2.pack(side="top", pady=10, fill="x")
 
         self.auto_detect_button = tk.Button(button_frame2, text="Auto Detect Board", command=self.auto_detect_board)
         self.auto_detect_button.pack(side="left", padx=5)
+
+        self.test_highlight_button = tk.Button(button_frame2, text="Test Mate Moves", command=self.test_highlight_mate_moves)
+        self.test_highlight_button.pack(side="left", padx=5)
 
             # Create a frame for the checkboxes
         checkbox1_frame = tk.Frame(root)
@@ -78,7 +86,7 @@ class ChessBoardDetector:
 
         # Create a checkbox to select the player's color
         self.player_color_var = tk.StringVar(value="White")
-        self.player_color_checkbox = tk.Checkbutton(checkbox1_frame, text="Player is Black", variable=self.player_color_var, onvalue="Black", offvalue="White", command=self.update_board_coordinates)
+        self.player_color_checkbox = tk.Checkbutton(checkbox1_frame, text="Player is Black", variable=self.player_color_var, onvalue="Black", offvalue="White", command=self.analyze_board)
         self.player_color_checkbox.pack(side="left", padx=5)
 
         self.eval_box_var = tk.BooleanVar(value=False)
@@ -143,6 +151,12 @@ class ChessBoardDetector:
         self.fish_skill_slider.set(10)
         self.fish_skill_slider.pack(side="top", pady=5)
 
+        # Capture Interval Slider
+        self.capture_interval_slider = tk.Scale(slider_frame, from_=100, to=3000, orient="horizontal", label="Capture Interval (ms)",
+                                                length=300, resolution=100)
+        self.capture_interval_slider.set(5000)
+        self.capture_interval_slider.pack(side="top", pady=5)
+
         # Frame for Console Output
         self.console_frame = tk.Frame(root)
         self.console_output = scrolledtext.ScrolledText(self.console_frame, wrap=tk.WORD, height=10, width=40)
@@ -174,9 +188,13 @@ class ChessBoardDetector:
 
             # Add hotkey for mouse wheel scroll up to analyze the board
         mouse.hook(self.on_mouse_event)
+        pass
+
+        # Start monitoring board changes if recapture is enabled
+        self.last_capture = None
+        self.monitor_board_changes()
 
 #-------GUI Methods
-
     def write(self, message): #Write the message to the console output
         # Insert message into console output
         self.console_output.insert(tk.END, message)
@@ -233,7 +251,7 @@ class ChessBoardDetector:
             self.player_color_var.set("Black")
         else:
             self.player_color_var.set("White")
-        self.update_board_coordinates()  # Update the board after toggling
+        self.analyze_board()  # Update the board after toggling
    
     def on_debug_checkbox_change(self, *args):#Method to handle the debug checkbox change
         if not self.debug_checkbox_var.get():  # Check if the checkbox is unticked
@@ -353,11 +371,6 @@ class ChessBoardDetector:
         selection_canvas.bind("<ButtonRelease-1>", on_mouse_up)
         selection_window.bind("<Motion>", on_mouse_move)
 
-    def reanalyze_board(self):#Reanalyze the board
-        if self.reanalyze_var.get():
-           if not self.hotkey_denied:
-                self.analyze_board()
-
     def calculate_mate(self):
         print("Calculating forced mate moves...")
 
@@ -396,15 +409,32 @@ class ChessBoardDetector:
                 forced_mate_moves = self.get_forced_mate_moves(fen)
                 if forced_mate_moves:
                     print("Forced mate moves:", forced_mate_moves)
-                    self.highlight_forced_mate_moves(forced_mate_moves)
+                    self.highlight_forced_mate(forced_mate_moves)
 
                 else:
                     print("No forced mate moves found.")
 
+    def reset_image(self): #Reset the image on the GUI
+        # Clear the image by setting it to None
+        self.image_label.configure(image=None)
+        self.image_label.imgtk = None  # Remove reference to the image
+        placeholder_img = Image.new("RGB", (1, 1), color=(255, 255, 255))  # White 1x1 pixel
+        imgtk = ImageTk.PhotoImage(image=placeholder_img)
+        
+        # Update the image_label with the 1x1 placeholder
+        self.image_label.imgtk = imgtk
+        self.image_label.configure(image=imgtk)
+        # Resize the window to fit the new contents
+        self.root.geometry("")  # Lets Tkinter recalculate the window size based on content
 
-
-
-#Stockfish methods       
+    def test_highlight_mate_moves(self):
+        # Example FEN for testing
+        test_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        # Example moves for testing (7 moves)
+        test_moves = ["a1a2", "b1b2", "c1c2", "d1d2", "e1e2", "f1f2", "g1g2", "h1h2", "a3,a4"]
+        self.highlight_forced_mate(test_moves)
+        
+#Stockfish methods     
     def initialize_stockfish(self):  # Initialize Stockfish
         try:
             # Ensure you're retrieving the slider's value as an integer
@@ -433,12 +463,12 @@ class ChessBoardDetector:
             else:
                 print("Invalid FEN.")
                 if self.reanalyze_var.get():
-                    threading.Timer(1.0, self.reanalyze_board).start()  # Delay reanalyze_board by 1 second
+                    threading.Timer(1.0, self.analyze_board).start()  # Delay analyze_board by 1 second
                 return False
         except ValueError:
             print("Invalid FEN syntax.")
             if self.reanalyze_var.get():
-                threading.Timer(1.0, self.reanalyze_board).start()  # Delay reanalyze_board by 1 second
+                threading.Timer(1.0, self.analyze_board).start()  # Delay analyze_board by 1 second
             return False
 
     def get_evaluation_data(self, fen: str):#Get the evaluation data from Stockfish
@@ -468,7 +498,6 @@ class ChessBoardDetector:
                 print("Stockfish is not initialized. Reinitializing...")
                 self.initialize_stockfish()
                 if self.stockfish is None:
-                    print("Failed to reinitialize Stockfish.")
                     return None, None
             
             try:
@@ -511,7 +540,7 @@ class ChessBoardDetector:
         try:
             # Get Stockfish analysis with a lower depth to detect a mate in 3
             info = engine.analyse(board, chess.engine.Limit(depth=12))  # Lower depth for faster computation
-            if info.get("score") and info["score"].is_mate() and 1 <= abs(info["score"].relative.mate()) <= 3:
+            if info.get("score") and info["score"].is_mate() and 1 <= abs(info["score"].relative.mate()) <= 10:
                 # Mate in 3 detected, extract the principal variation (PV)
                 pv_moves = info.get("pv", [])
                 for i in range(0, len(pv_moves), 2):  # Get only your moves (skipping opponent's moves)
@@ -522,6 +551,19 @@ class ChessBoardDetector:
 
         return mate_moves
 
+    def ping_stockfish(self):
+        try:
+            # Use get_parameters to check if Stockfish is responsive
+            parameters = self.stockfish.get_parameters()
+            if parameters:
+                print("Stockfish is responsive.")
+                return True
+            else:
+                print("No response from Stockfish.")
+                return False
+        except Exception as e:
+            print(f"Error while pinging Stockfish: {e}")
+            return False
 
 #Main Methods
     def analyze_board(self): #Main function to analyze the board and call draw methods
@@ -539,10 +581,16 @@ class ChessBoardDetector:
         think_time_seconds = think_time_ms / 1000.0  # Convert milliseconds to seconds
         self.deny_hotkeys_for(think_time_seconds)  # Deny hotkeys for the same amount of time as the think time
 
+        # Hide overlays before taking a screenshot
+        self.hide_overlays()
+        
         # Take a screenshot of the selected area
         screenshot = ImageGrab.grab(bbox=(self.start_x, self.start_y, self.end_x, self.end_y))
         screenshot = np.array(screenshot)
         screenshot = cv2.cvtColor(screenshot, cv2.COLOR_RGB2BGR)
+        
+        # Show overlays after taking the screenshot
+        self.show_overlays()
         
         # Assume the selected area is a perfect square chessboard
         board_size = 8
@@ -574,7 +622,7 @@ class ChessBoardDetector:
             
             # Identify the piece in the cell using HOG and SVM
             piece_name, confidence = self.identify_piece_with_svm(cell)
-            if piece_name and confidence > 0.8:  # Only consider predictions with high confidence
+            if (piece_name and confidence > 0.8):  # Only consider predictions with high confidence
                 # Add piece color label at the bottom of the cell if not identified as empty
                 piece_color = colors[idx] if piece_name.lower() != "empty" else ""
                 if piece_name.lower() != "empty":
@@ -644,8 +692,6 @@ class ChessBoardDetector:
                 if self.eval_box_var.get():
                     threading.Thread(target=self.get_evaluation_data, args=(fen,)).start()    
 
-         
-
     def check_castling_rights(self, board_position): #Check if castling is possible to add to FEN
         white_castling_rights = {'K': True, 'Q': True}
         black_castling_rights = {'k': True, 'q': True}
@@ -672,6 +718,9 @@ class ChessBoardDetector:
         castling_rights += 'k' if black_castling_rights['k'] else ''
         castling_rights += 'q' if black_castling_rights['q'] else ''
         return castling_rights if castling_rights else '-'
+
+
+
 
     def determine_piece_colors(self, cells): #Determine the color of the pieces
         colors = []
@@ -702,10 +751,8 @@ class ChessBoardDetector:
         
         # Now that we have the move, we need to update the GUI.
         # Tkinter GUI updates must be run on the main thread.
-        self.root.after(0, self.highlight_best_move, start, end)
+        self.root.after(0, self.highlight_over_GUI, start, end)
         self.root.after(0, self.highlight_over_screen, start, end)
-        # Reanalyze the board if you want to
-        self.reanalyze_board()
 
     def highlight_over_screen(self, start, end): #Highlight the best move on the screen
         # Assume the selected area is a perfect square chessboard
@@ -763,8 +810,7 @@ class ChessBoardDetector:
             # Add the overlay to the list of current move overlays
             self.current_move_overlays.append(overlay_end)
 
-
-    def highlight_best_move(self, start, end): #Highlight the best move on the GUi
+    def highlight_over_GUI(self, start, end): #Highlight the best move on the GUi
         # Assume the selected area is a perfect square chessboard
         board_size = 8
         cell_width = (self.end_x - self.start_x) // board_size
@@ -784,90 +830,82 @@ class ChessBoardDetector:
             # Display the result in the GUI
             self.display_image(self.screenshot_with_grid)
 
-    def highlight_forced_mate_moves(self, mate_moves): #Highlight the forced mate moves on the GUI
-        if self.stockfish is None:
-            print("Stockfish is not initialized.")
-            return
-        else:
-            # Destroy existing mate overlay boxes before creating new ones
-            if hasattr(self, 'current_mate_overlays'):
-                for overlay in self.current_mate_overlays:
-                    overlay.destroy()
-                self.current_mate_overlays = []
+    def draw_screen_highlight_box(self, x, y, cell_width, cell_height, color, text=None, position='center'):
+        # Create a transparent tkinter window for drawing the highlight box
+        overlay = tk.Toplevel(self.root)
+        overlay.attributes("-transparentcolor", "magenta")
+        overlay.attributes("-topmost", True)
+        overlay.geometry(f"{cell_width}x{cell_height}+{x}+{y}")
+        overlay.overrideredirect(True)
 
-            # Limit to the first three moves
-            mate_moves = mate_moves[:3]
+        canvas = tk.Canvas(overlay, width=cell_width, height=cell_height, bg='magenta', highlightthickness=0)
+        canvas.pack()
+        canvas.create_rectangle(0, 0, cell_width, cell_height, outline=color, width=5)
 
-            # Define the colors and corners
-            colors = ['green', 'blue', 'orange']
-            corners = ['nw', 'ne', 'sw', 'se']
+        # Draw the number if text is provided
+        if text is not None:
+            corners = {
+                'nw': (10, 10),
+                'ne': (cell_width - 10, 10),
+                'sw': (10, cell_height - 10),
+                'se': (cell_width - 10, cell_height - 10),
+                'center': (cell_width // 2, cell_height // 2)
+            }
+            pos_x, pos_y = corners[position]
+            canvas.create_text(pos_x, pos_y, text=text, anchor=position, fill=color, font=('Helvetica', 24))
 
-            # Get board size and cell dimensions
-            board_size = 8
-            cell_width = (self.end_x - self.start_x) // board_size
-            cell_height = (self.end_y - self.start_y) // board_size
+        # Add the overlay to the list of current mate overlays
+        self.current_mate_overlays.append(overlay)
+        
+    def highlight_forced_mate(self, mate_moves): 
 
-            # Get the board coordinates
-            board_coordinates = self.get_board_coordinates()
+        # Destroy existing mate overlay boxes before creating new ones
+        if hasattr(self, 'current_mate_overlays'):
+            for overlay in self.current_mate_overlays:
+                overlay.destroy()
+            self.current_mate_overlays = []
 
-            # Create a list for mate overlays if it doesn't exist
-            if not hasattr(self, 'current_mate_overlays'):
-                self.current_mate_overlays = []
+        # Limit to the first five moves
+        mate_moves = mate_moves[:5]
 
-            # Highlight each move
-            for idx, move in enumerate(mate_moves):
-                start = move[:2]
-                end = move[2:]
+        # Get board size and cell dimensions
+        board_size = 8
+        cell_width = (self.end_x - self.start_x) // board_size
+        cell_height = (self.end_y - self.start_y) // board_size
 
-                start_x, start_y = self.get_cell_coordinates(start, board_coordinates, cell_width, cell_height)
-                end_x, end_y = self.get_cell_coordinates(end, board_coordinates, cell_width, cell_height)
+        # Get the board coordinates
+        board_coordinates = self.get_board_coordinates()
 
-                if start_x is not None and end_x is not None:
-                    # Convert local coordinates to screen coordinates
-                    screen_start_x = self.start_x + start_x
-                    screen_start_y = self.start_y + start_y
-                    screen_end_x = self.start_x + end_x
-                    screen_end_y = self.start_y + end_y
+        # Create a list for mate overlays if it doesn't exist
+        if not hasattr(self, 'current_mate_overlays'):
+            self.current_mate_overlays = []
 
-                    # Create a transparent tkinter window for drawing the highlight box for the start position
-                    overlay = tk.Toplevel(self.root)
-                    overlay.attributes("-transparentcolor", "magenta")
-                    overlay.attributes("-topmost", True)
-                    overlay.geometry(f"{cell_width}x{cell_height}+{screen_start_x}+{screen_start_y}")
-                    overlay.overrideredirect(True)
+        # Highlight each move
+        colors = ['yellow', 'blue', 'orange', 'purple', 'cyan']
+        corners = ['nw', 'ne', 'sw', 'se', 'center']
+        for idx, move in enumerate(mate_moves):
+            start = move[:2]
+            end = move[2:]
 
-                    canvas = tk.Canvas(overlay, width=cell_width, height=cell_height, bg='magenta', highlightthickness=0)
-                    canvas.pack()
-                    canvas.create_rectangle(0, 0, cell_width, cell_height, outline=colors[idx % len(colors)], width=5)
-                    if idx == 0:
-                        canvas.create_text(5, 5, text=str(idx + 1), anchor='nw', fill='green', font=('Helvetica', 24))
-                    elif idx == 1:
-                        canvas.create_text(cell_width - 5, 5, text=str(idx + 1), anchor='ne', fill='blue', font=('Helvetica', 24))
-                    elif idx == 2:
-                        canvas.create_text(5, cell_height - 5, text=str(idx + 1), anchor='sw', fill='orange', font=('Helvetica', 24))
+            start_x, start_y = self.get_cell_coordinates(start, board_coordinates, cell_width, cell_height)
+            end_x, end_y = self.get_cell_coordinates(end, board_coordinates, cell_width, cell_height)
 
-                    # Add the overlay to the list of current mate overlays
-                    self.current_mate_overlays.append(overlay)
+            if start_x is not None and end_x is not None:
+                # Convert local coordinates to screen coordinates
+                screen_start_x = self.start_x + start_x
+                screen_start_y = self.start_y + start_y
+                screen_end_x = self.start_x + end_x
+                screen_end_y = self.start_y + end_y
 
-                    # Create a transparent tkinter window for drawing the highlight box for the end position
-                    overlay_end = tk.Toplevel(self.root)
-                    overlay_end.attributes("-transparentcolor", "magenta")
-                    overlay_end.attributes("-topmost", True)
-                    overlay_end.geometry(f"{cell_width}x{cell_height}+{screen_end_x}+{screen_end_y}")
-                    overlay_end.overrideredirect(True)
+                # Create overlay for the start position
+                self.draw_screen_highlight_box(screen_start_x, screen_start_y, cell_width, cell_height,
+                                    colors[idx % len(colors)], str(idx + 1), corners[idx % len(corners)])
 
-                    canvas_end = tk.Canvas(overlay_end, width=cell_width, height=cell_height, bg='magenta', highlightthickness=0)
-                    canvas_end.pack()
-                    canvas_end.create_rectangle(0, 0, cell_width, cell_height, outline='red', width=5)
-                    if idx == 0:
-                        canvas_end.create_text(5, 5, text=str(idx + 1), anchor='nw', fill='green', font=('Helvetica', 24))
-                    elif idx == 1:
-                        canvas_end.create_text(cell_width - 5, 5, text=str(idx + 1), anchor='ne', fill='blue', font=('Helvetica', 24))
-                    elif idx == 2:
-                        canvas_end.create_text(5, cell_height - 5, text=str(idx + 1), anchor='sw', fill='orange', font=('Helvetica', 24))
+                # Create overlay for the end position
+                self.draw_screen_highlight_box(screen_end_x, screen_end_y, cell_width, cell_height,
+                                    'red', str(idx + 1), corners[idx % len(corners)])
 
-                    # Add the overlay to the list of current mate overlays
-                    self.current_mate_overlays.append(overlay_end)
+
 
     def get_cell_coordinates(self, coord, board_coordinates, cell_width, cell_height): #Get the coordinates of the cell
         for i, row in enumerate(board_coordinates):
@@ -902,48 +940,18 @@ class ChessBoardDetector:
             imgtk = ImageTk.PhotoImage(image=img)
             self.image_label.imgtk = imgtk
             self.image_label.configure(image=imgtk)
-    
-    def reset_image(self): #Reset the image on the GUI
-        # Clear the image by setting it to None
-        self.image_label.configure(image=None)
-        self.image_label.imgtk = None  # Remove reference to the image
-        placeholder_img = Image.new("RGB", (1, 1), color=(255, 255, 255))  # White 1x1 pixel
-        imgtk = ImageTk.PhotoImage(image=placeholder_img)
-        
-        # Update the image_label with the 1x1 placeholder
-        self.image_label.imgtk = imgtk
-        self.image_label.configure(image=imgtk)
-        # Resize the window to fit the new contents
-        self.root.geometry("")  # Lets Tkinter recalculate the window size based on content
-
-    def update_board_coordinates(self): #Update the board coordinates based on player color
-        self.analyze_board()
 
     def get_board_coordinates(self): #Get the board coordinates based on player color
         player_color = self.player_color_var.get()
         board_size = 8
-        if player_color == "White":
+        if (player_color == "White"):
             return [[f'{chr(97 + j)}{8 - i}' for j in range(board_size)] for i in range(board_size)]
         else:
             return [[f'{chr(97 + (board_size - 1 - j))}{i + 1}' for j in range(board_size)] for i in range(board_size)]
-
+        
     def on_close(self): # Function to close the GUI and unhook all keyboard events
         keyboard.unhook_all()  # Stop all keyboard hooks
         self.root.destroy()         # Close the GUI window
-
-    def ping_stockfish(self):
-        try:
-            # Use get_parameters to check if Stockfish is responsive
-            parameters = self.stockfish.get_parameters()
-            if parameters:
-                print("Stockfish is responsive.")
-                return True
-            else:
-                print("No response from Stockfish.")
-                return False
-        except Exception as e:
-            print(f"Error while pinging Stockfish: {e}")
-            return False
 
     def auto_detect_board(self):
         # Hide the window to take a screenshot of full screen
@@ -985,6 +993,53 @@ class ChessBoardDetector:
 
         # Show the main window again
         self.root.deiconify()
+
+    def monitor_board_changes(self):
+        if self.reanalyze_var.get():
+            print("Recapture enabled. Monitoring board changes...")
+            # Hide overlays before taking a screenshot
+            self.hide_overlays()
+            
+            # Take a screenshot of the selected area
+            screenshot = ImageGrab.grab(bbox=(self.start_x, self.start_y, self.end_x, self.end_y))
+            screenshot = np.array(screenshot)
+            screenshot = cv2.cvtColor(screenshot, cv2.COLOR_RGB2BGR)
+            
+            # Show overlays after taking the screenshot
+            self.show_overlays()
+
+            # Compare with the last capture
+            if self.last_capture is not None:
+                if not np.array_equal(screenshot, self.last_capture):
+                    self.analyze_board()
+                else:
+                    pass
+            else:
+                print("No previous capture to compare with.")
+
+            # Update the last capture
+            self.last_capture = screenshot
+
+        # Schedule the next capture
+        capture_interval = self.capture_interval_slider.get()
+        self.root.after(capture_interval, self.monitor_board_changes)
+
+    def hide_overlays(self):
+        if hasattr(self, 'current_mate_overlays'):
+            for overlay in self.current_mate_overlays:
+                overlay.withdraw()
+        if hasattr(self, 'current_move_overlays'):
+            for overlay in self.current_move_overlays:
+                overlay.withdraw()
+
+    def show_overlays(self):
+        if hasattr(self, 'current_mate_overlays'):
+            for overlay in self.current_mate_overlays:
+                overlay.deiconify()
+        if hasattr(self, 'current_move_overlays'):
+            for overlay in self.current_move_overlays:
+                overlay.deiconify()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
