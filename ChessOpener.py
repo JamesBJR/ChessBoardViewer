@@ -20,7 +20,6 @@ import keyboard
 import mouse
 
 
-
 class ChessBoardDetector:
     def __init__(self, root):
         self.root = root
@@ -688,7 +687,7 @@ class ChessBoardDetector:
                 # Use a separate thread to get the best move to avoid blocking the GUI
                 threading.Thread(target=self.draw_moves_and_print, args=(fen,)).start()
                 think_time = self.think_time_slider.get()
-                self.root.after(think_time, lambda: None)  # Non-blocking pause for the length of the think time (in ms) 
+                self.root.after(think_time, lambda: None) # Non-blocking pause for the length of the think time (in ms) 
                 if self.eval_box_var.get():
                     threading.Thread(target=self.get_evaluation_data, args=(fen,)).start()    
 
