@@ -1,5 +1,6 @@
 import os
 import sys
+import random
 import time
 import json
 import threading
@@ -24,6 +25,7 @@ class ChessBoardDetector:
     def __init__(self, root):
         self.root = root
         self.root.title("Chess Board")
+        
         
         # Set the window icon (ensure the filename and path are correct)
         root.iconbitmap("AppIcon.ico")
@@ -117,6 +119,15 @@ class ChessBoardDetector:
         self.show_mate_checkbox = tk.Checkbutton(checkbox2_frame, text="Show Mate", variable=self.show_mate_var)
         self.show_mate_checkbox.pack(side="left", padx=5)
 
+        # Create a frame for the checkboxes 4
+        checkbox4_frame = tk.Frame(root)
+        checkbox4_frame.pack(side="top", pady=10, fill="x")
+
+        # Create the checkbox to toggle auto move
+        self.auto_move_var = tk.BooleanVar(value=False)
+        self.auto_move_checkbox = tk.Checkbutton(checkbox4_frame, text="Auto Move", variable=self.auto_move_var)
+        self.auto_move_checkbox.pack(side="left", padx=5)
+
         # Create a frame for evaluation bar
         eval_frame = tk.Frame(root)
         eval_frame.pack(side="top", pady=10, fill="x")
@@ -180,14 +191,12 @@ class ChessBoardDetector:
 
         # Flag to track if hotkeys are temporarily denied  
         self.hotkey_denied = False  
-
-        # Bind key event to reanalyze board
+        
         keyboard.add_hotkey('a', lambda: self.analyze_board_if_ready())
         keyboard.add_hotkey('s', lambda: self.toggle_player_color())
-
-            # Add hotkey for mouse wheel scroll up to analyze the board
+        # Add hotkey for mouse wheel scroll up to analyze the board
         mouse.hook(self.on_mouse_event)
-        pass
+        
 
         # Start monitoring board changes if recapture is enabled
         self.last_capture = None
@@ -217,6 +226,9 @@ class ChessBoardDetector:
             if isinstance(event, mouse.WheelEvent) and event.delta > 0:
                 self.analyze_board_if_ready()
             if isinstance(event, mouse.WheelEvent) and event.delta < 0:
+                self.analyze_board_if_ready()
+             # Check if the event is a right-click event
+            if isinstance(event, mouse.ButtonEvent) and event.button == mouse.RIGHT and event.event_type == 'down':
                 self.analyze_board_if_ready()
             
     def deny_hotkeys_for(self, duration):#Method to deny hotkeys for a set amount of time
@@ -526,6 +538,9 @@ class ChessBoardDetector:
             start_pos = best_move[:2]
             end_pos = best_move[2:]
             
+            if (self.auto_move_var.get()):
+                self.make_move(start_pos, end_pos) # Automatically make the best move if auto move is enabled
+            
             return start_pos, end_pos
     
     def get_forced_mate_moves(self, fen: str) -> list:
@@ -657,20 +672,20 @@ class ChessBoardDetector:
             empty_count = 0
             fen_row = ''
             for cell in row:
-                if cell == '':
+                if (cell == ''):
                     empty_count += 1
                 else:
-                    if empty_count > 0:
+                    if (empty_count > 0):
                         fen_row += str(empty_count)
                         empty_count = 0
                     fen_row += cell
-            if empty_count > 0:
+            if (empty_count > 0):
                 fen_row += str(empty_count)
             fen_rows.append(fen_row)
         fen = '/'.join(fen_rows) + (' b' if self.player_color_var.get() == 'Black' else ' w') + f' {castling_rights} - 0 1'
         
         # Flip the FEN if the player is black to adjust the board perspective
-        if self.player_color_var.get() == 'Black':
+        if (self.player_color_var.get() == 'Black'):
             fen_rows = fen.split(' ')[0].split('/')
             fen_rows = [row[::-1] for row in reversed(fen_rows)]
             fen = '/'.join(fen_rows) + (' b' if self.player_color_var.get() == 'Black' else ' w') + f' {castling_rights} - 0 1'
@@ -680,16 +695,18 @@ class ChessBoardDetector:
         # Display the updated board with grid
         self.display_image(self.screenshot_with_grid)
 
-        if self.is_legal_fen(fen):
-            if not self.ping_stockfish():
+        if (self.is_legal_fen(fen)):
+            if (not self.ping_stockfish()):
                 self.Restart_stockfish()
             else:
                 # Use a separate thread to get the best move to avoid blocking the GUI
                 threading.Thread(target=self.draw_moves_and_print, args=(fen,)).start()
                 think_time = self.think_time_slider.get()
                 self.root.after(think_time, lambda: None) # Non-blocking pause for the length of the think time (in ms) 
-                if self.eval_box_var.get():
-                    threading.Thread(target=self.get_evaluation_data, args=(fen,)).start()    
+                if (self.eval_box_var.get()):
+                    threading.Thread(target=self.get_evaluation_data, args=(fen,)).start()
+
+                     
 
     def check_castling_rights(self, board_position): #Check if castling is possible to add to FEN
         white_castling_rights = {'K': True, 'Q': True}
@@ -697,17 +714,17 @@ class ChessBoardDetector:
         
         # Automatically determine if kings have been in check based on board state
         # Check if white king or rooks have moved or if there are pieces in the way for castling
-        if board_position[7][4] != 'K' or board_position[7][7] != 'R' or board_position[7][5] or board_position[7][6]:
+        if (board_position[7][4] != 'K' or board_position[7][7] != 'R' or board_position[7][5] or board_position[7][6]):
             white_castling_rights['K'] = False
 
-        if board_position[7][4] != 'K' or board_position[7][0] != 'R' or board_position[7][1] or board_position[7][2] or board_position[7][3]:
+        if (board_position[7][4] != 'K' or board_position[7][0] != 'R' or board_position[7][1] or board_position[7][2] or board_position[7][3]):
             white_castling_rights['Q'] = False
 
         # Check if black king or rooks have moved or if there are pieces in the way for castling
-        if board_position[0][4] != 'k' or board_position[0][7] != 'r' or board_position[0][5] or board_position[0][6]:
+        if (board_position[0][4] != 'k' or board_position[0][7] != 'r' or board_position[0][5] or board_position[0][6]):
             black_castling_rights['k'] = False
 
-        if board_position[0][4] != 'k' or board_position[0][0] != 'r' or board_position[0][1] or board_position[0][2] or board_position[0][3]:
+        if (board_position[0][4] != 'k' or board_position[0][0] != 'r' or board_position[0][1] or board_position[0][2] or board_position[0][3]):
             black_castling_rights['q'] = False
 
         # Build castling rights string
@@ -717,9 +734,6 @@ class ChessBoardDetector:
         castling_rights += 'k' if black_castling_rights['k'] else ''
         castling_rights += 'q' if black_castling_rights['q'] else ''
         return castling_rights if castling_rights else '-'
-
-
-
 
     def determine_piece_colors(self, cells): #Determine the color of the pieces
         colors = []
@@ -733,7 +747,7 @@ class ChessBoardDetector:
             avg_brightness = np.mean(cell_gray)
             
             # Classify based on brightness threshold
-            if avg_brightness > brightness_threshold:
+            if (avg_brightness > brightness_threshold):
                 colors.append("White")
             else:
                 colors.append("Black")
@@ -742,7 +756,7 @@ class ChessBoardDetector:
 
     def draw_moves_and_print(self, fen): #Get the best move and draw it on the GUI
         start, end = self.get_best_move(fen)
-        if start is None or end is None:
+        if (start is None or end is None):
             print("No move available.")
             return
 
@@ -754,6 +768,64 @@ class ChessBoardDetector:
         self.root.after(0, self.highlight_over_screen, start, end)
 
     def highlight_over_screen(self, start, end): #Highlight the best move on the screen
+        
+        if not (self.auto_move_var.get()):
+            # Assume the selected area is a perfect square chessboard
+            board_size = 8
+            cell_width = (self.end_x - self.start_x) // board_size
+            cell_height = (self.end_y - self.start_y) // board_size
+
+            # Define the chessboard coordinates based on player color
+            board_coordinates = self.get_board_coordinates()
+
+            start_x, start_y = self.get_cell_coordinates(start, board_coordinates, cell_width, cell_height)
+            end_x, end_y = self.get_cell_coordinates(end, board_coordinates, cell_width, cell_height)
+            
+            if (start_x is not None and end_x is not None):
+                # Create a list for move overlays if it doesn't exist
+                    if (not hasattr(self, 'current_move_overlays')):
+                        self.current_move_overlays = []
+
+                    # Destroy existing move overlay boxes before creating new ones
+                    for overlay in self.current_move_overlays:
+                        overlay.destroy()
+                    self.current_move_overlays = []
+
+                    # Convert local coordinates to screen coordinates
+                    screen_start_x = self.start_x + start_x
+                    screen_start_y = self.start_y + start_y
+                    screen_end_x = self.start_x + end_x
+                    screen_end_y = self.start_y + end_y
+
+                    # Create a transparent tkinter window for drawing the highlight box for the start position
+                    overlay = tk.Toplevel(self.root)
+                    overlay.attributes("-transparentcolor", "magenta")
+                    overlay.attributes("-topmost", True)
+                    overlay.geometry(f"{cell_width}x{cell_height}+{screen_start_x}+{screen_start_y}")
+                    overlay.overrideredirect(True)
+
+                    canvas = tk.Canvas(overlay, width=cell_width, height=cell_height, bg='magenta', highlightthickness=0)
+                    canvas.pack()
+                    canvas.create_rectangle(0, 0, cell_width, cell_height, outline='green', width=5)
+
+                    # Add the overlay to the list of current move overlays
+                    self.current_move_overlays.append(overlay)
+
+                    # Create a transparent tkinter window for drawing the highlight box for the end position
+                    overlay_end = tk.Toplevel(self.root)
+                    overlay_end.attributes("-transparentcolor", "magenta")
+                    overlay_end.attributes("-topmost", True)
+                    overlay_end.geometry(f"{cell_width}x{cell_height}+{screen_end_x}+{screen_end_y}")
+                    overlay_end.overrideredirect(True)
+
+                    canvas_end = tk.Canvas(overlay_end, width=cell_width, height=cell_height, bg='magenta', highlightthickness=0)
+                    canvas_end.pack()
+                    canvas_end.create_rectangle(0, 0, cell_width, cell_height, outline='red', width=5)
+
+                    # Add the overlay to the list of current move overlays
+                    self.current_move_overlays.append(overlay_end)
+
+    def highlight_over_GUI(self, start, end): #Highlight a move on the GUI
         # Assume the selected area is a perfect square chessboard
         board_size = 8
         cell_width = (self.end_x - self.start_x) // board_size
@@ -765,63 +837,7 @@ class ChessBoardDetector:
         start_x, start_y = self.get_cell_coordinates(start, board_coordinates, cell_width, cell_height)
         end_x, end_y = self.get_cell_coordinates(end, board_coordinates, cell_width, cell_height)
         
-        if start_x is not None and end_x is not None:
-            # Create a list for move overlays if it doesn't exist
-            if not hasattr(self, 'current_move_overlays'):
-                self.current_move_overlays = []
-
-            # Destroy existing move overlay boxes before creating new ones
-            for overlay in self.current_move_overlays:
-                overlay.destroy()
-            self.current_move_overlays = []
-
-            # Convert local coordinates to screen coordinates
-            screen_start_x = self.start_x + start_x
-            screen_start_y = self.start_y + start_y
-            screen_end_x = self.start_x + end_x
-            screen_end_y = self.start_y + end_y
-
-            # Create a transparent tkinter window for drawing the highlight box for the start position
-            overlay = tk.Toplevel(self.root)
-            overlay.attributes("-transparentcolor", "magenta")
-            overlay.attributes("-topmost", True)
-            overlay.geometry(f"{cell_width}x{cell_height}+{screen_start_x}+{screen_start_y}")
-            overlay.overrideredirect(True)
-
-            canvas = tk.Canvas(overlay, width=cell_width, height=cell_height, bg='magenta', highlightthickness=0)
-            canvas.pack()
-            canvas.create_rectangle(0, 0, cell_width, cell_height, outline='green', width=5)
-
-            # Add the overlay to the list of current move overlays
-            self.current_move_overlays.append(overlay)
-
-            # Create a transparent tkinter window for drawing the highlight box for the end position
-            overlay_end = tk.Toplevel(self.root)
-            overlay_end.attributes("-transparentcolor", "magenta")
-            overlay_end.attributes("-topmost", True)
-            overlay_end.geometry(f"{cell_width}x{cell_height}+{screen_end_x}+{screen_end_y}")
-            overlay_end.overrideredirect(True)
-
-            canvas_end = tk.Canvas(overlay_end, width=cell_width, height=cell_height, bg='magenta', highlightthickness=0)
-            canvas_end.pack()
-            canvas_end.create_rectangle(0, 0, cell_width, cell_height, outline='red', width=5)
-
-            # Add the overlay to the list of current move overlays
-            self.current_move_overlays.append(overlay_end)
-
-    def highlight_over_GUI(self, start, end): #Highlight the best move on the GUi
-        # Assume the selected area is a perfect square chessboard
-        board_size = 8
-        cell_width = (self.end_x - self.start_x) // board_size
-        cell_height = (self.end_y - self.start_y) // board_size
-
-        # Define the chessboard coordinates based on player color
-        board_coordinates = self.get_board_coordinates()
-
-        start_x, start_y = self.get_cell_coordinates(start, board_coordinates, cell_width, cell_height)
-        end_x, end_y = self.get_cell_coordinates(end, board_coordinates, cell_width, cell_height)
-        
-        if start_x is not None and end_x is not None:
+        if (start_x is not None and end_x is not None):
             # Draw the best move on the original screenshot with grid
             cv2.rectangle(self.screenshot_with_grid, (start_x, start_y), (start_x + cell_width, start_y + cell_height), (0, 255, 0), 3)
             cv2.rectangle(self.screenshot_with_grid, (end_x, end_y), (end_x + cell_width, end_y + cell_height), (0, 0, 255), 3)
@@ -829,7 +845,7 @@ class ChessBoardDetector:
             # Display the result in the GUI
             self.display_image(self.screenshot_with_grid)
 
-    def draw_screen_highlight_box(self, x, y, cell_width, cell_height, color, text=None, position='center'):
+    def draw_screen_highlight_box(self, x, y, cell_width, cell_height, color, text=None, position='center'): #Draw a highlight box on the screen used for mate moves drawing
         # Create a transparent tkinter window for drawing the highlight box
         overlay = tk.Toplevel(self.root)
         overlay.attributes("-transparentcolor", "magenta")
@@ -842,7 +858,7 @@ class ChessBoardDetector:
         canvas.create_rectangle(0, 0, cell_width, cell_height, outline=color, width=5)
 
         # Draw the number if text is provided
-        if text is not None:
+        if (text is not None):
             corners = {
                 'nw': (10, 10),
                 'ne': (cell_width - 10, 10),
@@ -856,7 +872,7 @@ class ChessBoardDetector:
         # Add the overlay to the list of current mate overlays
         self.current_mate_overlays.append(overlay)
         
-    def highlight_forced_mate(self, mate_moves): 
+    def highlight_forced_mate(self, mate_moves):  # Highlight the forced mate moves on the screen
 
         # Destroy existing mate overlay boxes before creating new ones
         if hasattr(self, 'current_mate_overlays'):
@@ -876,7 +892,7 @@ class ChessBoardDetector:
         board_coordinates = self.get_board_coordinates()
 
         # Create a list for mate overlays if it doesn't exist
-        if not hasattr(self, 'current_mate_overlays'):
+        if (not hasattr(self, 'current_mate_overlays')):
             self.current_mate_overlays = []
 
         # Highlight each move
@@ -889,7 +905,7 @@ class ChessBoardDetector:
             start_x, start_y = self.get_cell_coordinates(start, board_coordinates, cell_width, cell_height)
             end_x, end_y = self.get_cell_coordinates(end, board_coordinates, cell_width, cell_height)
 
-            if start_x is not None and end_x is not None:
+            if (start_x is not None and end_x is not None):
                 # Convert local coordinates to screen coordinates
                 screen_start_x = self.start_x + start_x
                 screen_start_y = self.start_y + start_y
@@ -904,12 +920,10 @@ class ChessBoardDetector:
                 self.draw_screen_highlight_box(screen_end_x, screen_end_y, cell_width, cell_height,
                                     'red', str(idx + 1), corners[idx % len(corners)])
 
-
-
     def get_cell_coordinates(self, coord, board_coordinates, cell_width, cell_height): #Get the coordinates of the cell
         for i, row in enumerate(board_coordinates):
             for j, board_coord in enumerate(row):
-                if board_coord == coord:
+                if (board_coord == coord):
                     return j * cell_width, i * cell_height
         return None, None
 
@@ -931,7 +945,7 @@ class ChessBoardDetector:
 
     def display_image(self, img): #Display the image on the GUI
         # Only display the image if the checkbox is enabled
-        if self.debug_checkbox_var.get():
+        if (self.debug_checkbox_var.get()):
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             # Resize the image to a set size
@@ -971,7 +985,7 @@ class ChessBoardDetector:
         # Find contours in the edges
         contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        if contours:
+        if (contours):
             # Find the largest contour which should be the chessboard
             largest_contour = max(contours, key=cv2.contourArea)
 
@@ -994,7 +1008,7 @@ class ChessBoardDetector:
         self.root.deiconify()
 
     def monitor_board_changes(self):
-        if self.reanalyze_var.get():
+        if (self.reanalyze_var.get()):
             print("Recapture enabled. Monitoring board changes...")
             # Hide overlays before taking a screenshot
             self.hide_overlays()
@@ -1008,8 +1022,8 @@ class ChessBoardDetector:
             self.show_overlays()
 
             # Compare with the last capture
-            if self.last_capture is not None:
-                if not np.array_equal(screenshot, self.last_capture):
+            if (self.last_capture is not None):
+                if (not np.array_equal(screenshot, self.last_capture)):
                     self.analyze_board()
                 else:
                     pass
@@ -1038,6 +1052,39 @@ class ChessBoardDetector:
         if hasattr(self, 'current_move_overlays'):
             for overlay in self.current_move_overlays:
                 overlay.deiconify()
+
+    def make_move(self, start, end):
+        """
+        Simulate making a move on the chessboard.
+        :param start: The starting position of the move (e.g., 'e2').
+        :param end: The ending position of the move (e.g., 'e4').
+        """
+
+        # Convert the board coordinates to screen coordinates
+        board_size = 8
+        cell_width = (self.end_x - self.start_x) // board_size
+        cell_height = (self.end_y - self.start_y) // board_size
+
+        board_coordinates = self.get_board_coordinates()
+
+        start_x, start_y = self.get_cell_coordinates(start, board_coordinates, cell_width, cell_height)
+        end_x, end_y = self.get_cell_coordinates(end, board_coordinates, cell_width, cell_height)
+
+        if start_x is not None and end_x is not None:
+            # Convert local coordinates to screen coordinates with added randomness
+            screen_start_x = self.start_x + start_x + random.randint(cell_width // 4, 3 * cell_width // 4)
+            screen_start_y = self.start_y + start_y + random.randint(cell_height // 4, 3 * cell_height // 4)
+            screen_end_x = self.start_x + end_x + random.randint(cell_width // 4, 3 * cell_width // 4)
+            screen_end_y = self.start_y + end_y + random.randint(cell_height // 4, 3 * cell_height // 4)
+
+            # Simulate the move using pyautogui with human-like behavior
+            pyautogui.moveTo(screen_start_x, screen_start_y, duration=random.uniform(0.05, 0.15))  # Reduced by 50%
+            time.sleep(random.uniform(0.025, 0.075))  # Reduced by 50%
+            pyautogui.mouseDown()
+            time.sleep(random.uniform(0.025, 0.075))  # Reduced by 50%
+            pyautogui.moveTo(screen_end_x, screen_end_y, duration=random.uniform(0.1, 0.25))  # Reduced by 50%
+            pyautogui.mouseUp()
+            time.sleep(random.uniform(0.025, 0.075))  # Reduced by 50%
 
 
 if __name__ == "__main__":
