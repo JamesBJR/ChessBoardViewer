@@ -1,9 +1,12 @@
+this is a fully functional chess bot for chess.com. 
+
 you should use the grafitti board and the default pieces if you can
-you must select if you are black or white
+y
+ou must select if you are black or white
 
-press detect board for the program to load where the game board is.
+press detect board for the program to load where the game board is. you only need to do this one time if you move your window you will have to do this again. 
 
-press analyze board to show the best move for the currently loaded stockfish
+press analyze board to show the best move for the currently loaded stockfish, with auto move ticked it will make the move for you. 
 
 if you change the stockfish skill level you must also restart stockfish.
 
