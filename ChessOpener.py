@@ -164,7 +164,7 @@ class ChessBoardDetector:
         # Stockfish Skill Level Slider
         self.fish_skill_slider = tk.Scale(slider_frame, from_=1, to=20, orient="horizontal", label="Skill Level",
                                         length=300, resolution=1)
-        self.fish_skill_slider.set(1)
+        self.fish_skill_slider.set(20)
         self.fish_skill_slider.pack(side="top", pady=5)
         #self.fish_skill_slider.config(state=tk.DISABLED)
 
