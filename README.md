@@ -1,8 +1,9 @@
 this is a fully functional chess bot for chess.com. 
 
+The App is entirely within ChessOpener.py
 you should use the grafitti board and the default pieces if you can
-y
-ou must select if you are black or white
+
+you must select if you are black or white
 
 press detect board for the program to load where the game board is. you only need to do this one time if you move your window you will have to do this again. 
 
