@@ -27,11 +27,8 @@ class ChessBoardDetector:
         self.root = root
         self.root.title("Chess Board")
         
-        
         # Set the window icon (ensure the filename and path are correct)
         root.iconbitmap("AppIcon.ico")
-        
-
 
         # Load previous selection coordinates if available
         self.board_start_x = None
@@ -43,13 +40,11 @@ class ChessBoardDetector:
         self.timer_end_x = None
         self.timer_end_y = None
         self.load_coordinates()
-        
 
-                        # Create a canvas for the chessboard
+        # Create a canvas for the chessboard
         self.canvas = tk.Canvas(self.root, width=(self.end_x - self.start_x), height=(self.end_y - self.start_y))
         self.canvas.place(x=self.start_x, y=self.start_y)
-       # Frame for Chessboard Display
-        # Rearranged GUI elements for a more organized layout
+        # Frame for Chessboard Display
 
         # Create a label to display the chessboard image
         self.image_label = tk.Label(root)
@@ -87,7 +82,7 @@ class ChessBoardDetector:
         self.start_loop_button = tk.Button(button_frame2, text="Start Loop", command=self.start_reanalyze_loop)
         self.start_loop_button.pack(side="left", padx=5)
 
-            # Create a frame for the checkboxes
+        # Create a frame for the checkboxes
         checkbox1_frame = tk.Frame(root)
         checkbox1_frame.pack(side="top", pady=10, fill="x")
 
@@ -169,15 +164,16 @@ class ChessBoardDetector:
         # Stockfish Skill Level Slider
         self.fish_skill_slider = tk.Scale(slider_frame, from_=1, to=20, orient="horizontal", label="Skill Level",
                                         length=300, resolution=1)
-        self.fish_skill_slider.set(10)
+        self.fish_skill_slider.set(1)
         self.fish_skill_slider.pack(side="top", pady=5)
+        #self.fish_skill_slider.config(state=tk.DISABLED)
 
         # Capture Interval Slider
-        self.capture_interval_slider = tk.Scale(slider_frame, from_=100, to=3000, orient="horizontal", label="Capture Interval (ms)",
+        self.capture_interval_slider = tk.Scale(slider_frame, from_=500, to=3000, orient="horizontal", label="Capture Interval (ms)",
                                                 length=300, resolution=100)
         self.capture_interval_slider.set(5000)
         self.capture_interval_slider.pack(side="top", pady=5)
-
+        
         # Frame for Console Output
         self.console_frame = tk.Frame(root)
         self.console_output = scrolledtext.ScrolledText(self.console_frame, wrap=tk.WORD, height=10, width=40)
@@ -190,7 +186,6 @@ class ChessBoardDetector:
 
         # Load pre-trained SVM model for piece recognition
         self.svm_model = self.load_svm_model()
-
 
         # Initialize Stockfish engine
         stockfish_path = r"C:\GitHubRepos\ChessBoardViewer\stockfish\stockfish-windows-x86-64-avx2.exe"
@@ -206,6 +201,7 @@ class ChessBoardDetector:
         keyboard.add_hotkey('a', lambda: self.analyze_board_if_ready())
         keyboard.add_hotkey('s', lambda: self.toggle_player_color())
         keyboard.add_hotkey('d', lambda: self.get_best_premove())
+        keyboard.add_hotkey('f', lambda: self.toggle_reanalyze())
         # Add hotkey for mouse wheel scroll up to analyze the board
         mouse.hook(self.on_mouse_event)
         
@@ -312,7 +308,7 @@ class ChessBoardDetector:
             print("Model file not found. Please train the SVM model first.")
             return None
 
-    def select_area(self):
+    def select_area(self):#Method to select the area of the chessboard
         # Hide the window to take a screenshot of full screen
         self.root.withdraw()
         time.sleep(0.5)  # Small delay to make sure the window is hidden
@@ -398,7 +394,7 @@ class ChessBoardDetector:
         selection_canvas.bind("<ButtonRelease-1>", on_mouse_up)
         selection_window.bind("<Motion>", on_mouse_move)
 
-    def select_timer(self):
+    def select_timer(self):#Method to select the timer area
         # Hide the window to take a screenshot of full screen
         self.root.withdraw()
         time.sleep(0.5)  # Small delay to make sure the window is hidden
@@ -502,13 +498,10 @@ class ChessBoardDetector:
         # Resize the window to fit the new contents
         self.root.geometry("")  # Lets Tkinter recalculate the window size based on content
 
-    def test_highlight_mate_moves(self):
-        # Example FEN for testing
-        test_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-        # Example moves for testing (7 moves)
-        test_moves = ["a1a2", "b1b2", "c1c2", "d1d2", "e1e2", "f1f2", "g1g2", "h1h2", "a3,a4"]
-        self.highlight_forced_mate(test_moves)
-
+    def toggle_reanalyze(self):
+        # Toggle the state of the reanalyze checkbox
+        current_state = self.reanalyze_var.get()
+        self.reanalyze_var.set(not current_state)
   
 
 
@@ -580,7 +573,14 @@ class ChessBoardDetector:
                 
                 # Get the best move from Stockfish
                 think_time = self.think_time_slider.get()
-                best_move = self.stockfish.get_best_move_time(think_time)
+                
+                if self.auto_move_var.get():
+                    #random_number = random.randint(-400, 600)
+                    #think_time = think_time + random_number
+                    best_move = self.stockfish.get_best_move_time(think_time)
+                else:
+                    
+                    best_move = self.stockfish.get_best_move_time(think_time)
                 
             except Exception as e:
                 print(f"Stockfish process crashed: {e}. Reinitializing...")
@@ -606,7 +606,7 @@ class ChessBoardDetector:
             
             return start_pos, end_pos
     
-    def get_best_premove(self):
+    def get_best_premove(self): #Get the best premove from Stockfish
         # Determines the best move for the opponent, simulates it on the board,
         # and then determines the best response move (premove) for the player.
         # Create a board from the FEN string and switch the turn
@@ -652,7 +652,7 @@ class ChessBoardDetector:
                      #   self.make_move(start_pos, end_pos) # Automatically make the best move if auto move is enabled
                     #else:
                         # Highlight the best move on the screen
-                    self.highlight_over_screen(start_pos, end_pos, opp_start, opp_end)
+                    self.highlight_over_screen(start_pos, end_pos, opp_start, opp_end, 1)
 
                 except Exception as e:
                     print(f"Stockfish process crashed: {e}. Reinitializing...")
@@ -661,7 +661,7 @@ class ChessBoardDetector:
                         return None, None
                     return self.get_best_premove()
 
-    def get_forced_mate_moves(self, fen: str) -> list:
+    def get_forced_mate_moves(self, fen: str) -> list: #Get the forced mate moves from Stockfish
         # Load the chess engine
         engine_path = r"C:\GitHubRepos\ChessBoardViewer\stockfish\stockfish-windows-x86-64-avx2.exe"
         engine = chess.engine.SimpleEngine.popen_uci(engine_path)
@@ -683,7 +683,7 @@ class ChessBoardDetector:
 
         return mate_moves
 
-    def ping_stockfish(self):
+    def ping_stockfish(self): #Ping Stockfish to check if it is responsive
         try:
             # Use get_parameters to check if Stockfish is responsive
             parameters = self.stockfish.get_parameters()
@@ -697,9 +697,10 @@ class ChessBoardDetector:
             print(f"Error while pinging Stockfish: {e}")
             return False
 
-#Main Methods
-    
-    def capture_fen(self):    
+
+
+#Main Methods  
+    def capture_fen(self): # Capture the FEN from the board  
 
         if self.start_x is None or self.start_y is None or self.end_x is None or self.end_y is None:
             print("Please select an area first.")
@@ -808,7 +809,7 @@ class ChessBoardDetector:
             fen_rows = [row[::-1] for row in reversed(fen_rows)]
             fen = '/'.join(fen_rows) + (' b' if self.player_color_var.get() == 'Black' else ' w') + f' {castling_rights} - 0 1'
           
-        print(f"FEN: {fen[:37]}")
+        print(f"FEN: {fen}")
 
         # Display the updated board with grid
         self.display_image(self.screenshot_with_grid)
@@ -828,21 +829,21 @@ class ChessBoardDetector:
                 if (self.eval_box_var.get()):
                     threading.Thread(target=self.get_evaluation_data, args=(fen,)).start()
 
-    def start_reanalyze_loop(self):
+    def start_reanalyze_loop(self): #Start the reanalyze loop
         def reanalyze_loop(initial_timer_area):
             while self.reanalyze_var.get():  # Assuming reanalyze_var is a Tkinter BooleanVar linked to the reanalyze checkbox
-                #time.sleep(.1)  # Wait for the interval specified by the recapture slider
+                time.sleep(.1)  # Wait for the interval specified by the recapture slider
 
                 # Capture the current timer area
                 current_timer_area = self.capture_timer_area()
-
+                capture_interval = self.capture_interval_slider.get() / 1000  # Convert milliseconds to seconds
                 # Check if the timer area is the same as the initial capture
                 if np.array_equal(initial_timer_area, current_timer_area):
                     # Call analyze_board if the timer area is the same
                     self.analyze_board()
                     print("Reanalyzing...")
                     # Wait for 2 seconds to allow the move to be made
-                    time.sleep(3)
+                    time.sleep(capture_interval)
                 else:
                     # If the timer area is different, update the initial capture
                     pass
@@ -855,7 +856,7 @@ class ChessBoardDetector:
         reanalyze_thread.daemon = True  # Ensure the thread exits when the main program exits
         reanalyze_thread.start()
 
-    def capture_timer_area(self):
+    def capture_timer_area(self): #Capture the timer area from the screen
         # Load the timer coordinates
         with open("timer_coordinates.json", "r") as file:
             timer_coords = json.load(file)
@@ -868,7 +869,6 @@ class ChessBoardDetector:
         # Extract the timer area from the screenshot
         timer_area = screenshot[timer_coords["start_y"]:timer_coords["end_y"], timer_coords["start_x"]:timer_coords["end_x"]]
         return timer_area
-
 
     def check_castling_rights(self, board_position): #Check if castling is possible to add to FEN
         white_castling_rights = {'K': True, 'Q': True}
@@ -960,9 +960,9 @@ class ChessBoardDetector:
         self.root.after(0, self.highlight_over_GUI, start, end)
         self.root.after(0, self.highlight_over_screen, start, end)
 
-    def highlight_over_screen(self, start, end, opponent_start=None, opponent_end=None):
+    def highlight_over_screen(self, start, end, opponent_start=None, opponent_end=None, bypass=None):
         # Highlight the best move on the screen
-        if not self.auto_move_var.get():
+        if (not self.auto_move_var.get()) or (bypass != None):
             # Assume the selected area is a perfect square chessboard
             board_size = 8
             cell_width = (self.end_x - self.start_x) // board_size
@@ -1199,7 +1199,7 @@ class ChessBoardDetector:
         keyboard.unhook_all()  # Stop all keyboard hooks
         self.root.destroy()         # Close the GUI window
 
-    def auto_detect_board(self):
+    def auto_detect_board(self): #Automatically detect the chessboard
         # Hide the window to take a screenshot of full screen
         self.root.withdraw()
         time.sleep(0.2)  # Small delay to make sure the window is hidden
@@ -1240,7 +1240,7 @@ class ChessBoardDetector:
         # Show the main window again
         self.root.deiconify()
 
-    def hide_overlays(self):
+    def hide_overlays(self): #Hide the overlays
         # Hide the move overlays
         if hasattr(self, 'current_mate_overlays'):
             for overlay in self.current_mate_overlays:
@@ -1250,7 +1250,7 @@ class ChessBoardDetector:
             for overlay in self.current_move_overlays:
                 overlay.withdraw()
 
-    def show_overlays(self):
+    def show_overlays(self): #Show the overlays
         if hasattr(self, 'current_mate_overlays'):
             for overlay in self.current_mate_overlays:
                 overlay.deiconify()
@@ -1258,7 +1258,7 @@ class ChessBoardDetector:
             for overlay in self.current_move_overlays:
                 overlay.deiconify()
 
-    def make_move(self, start, end):
+    def make_move(self, start, end): #Make a move on the chessboard automatically
         """
         Simulate making a move on the chessboard.
         :param start: The starting position of the move (e.g., 'e2').
@@ -1283,7 +1283,7 @@ class ChessBoardDetector:
             screen_end_y = self.start_y + end_y + random.randint(cell_height // 4, 3 * cell_height // 4)
 
             # Simulate the move using pyautogui with human-like behavior
-            pyautogui.moveTo(screen_start_x, screen_start_y, duration=random.uniform(0.05, 0.15))  # Reduced by 50%
+            pyautogui.moveTo(screen_start_x, screen_start_y, duration=random.uniform(0.1, 0.25))  # Reduced by 50%
             time.sleep(random.uniform(0.025, 0.075))  # Reduced by 50%
             pyautogui.mouseDown()
             time.sleep(random.uniform(0.025, 0.075))  # Reduced by 50%
@@ -1299,4 +1299,3 @@ if __name__ == "__main__":
     app = ChessBoardDetector(root)
     root.protocol("WM_DELETE_WINDOW", app.on_close)  # Bind the close event to the on_close function
     root.mainloop()
-    #keyboard.wait()  # Keep the program running to listen for hotkeys
